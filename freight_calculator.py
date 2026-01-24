@@ -16,8 +16,6 @@ import numpy as np
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Tuple
 from datetime import datetime, timedelta
-import warnings
-warnings.filterwarnings('ignore')
 
 
 # =============================================================================
@@ -96,6 +94,15 @@ class Cargo:
     # Fields with defaults must come last
     is_cargill: bool = True
     half_freight_threshold: Optional[int] = None  # If cargo > this, half freight applies
+
+
+@dataclass
+class VoyageConfig:
+    """Configuration constants for voyage calculations."""
+    misc_costs: float = 15000  # Typical for Capesize (canal fees, surveys, etc.)
+    vessel_constants: float = 3500  # Reserve for bunkers/stores on vessel (MT)
+    port_delay_load_fraction: float = 0.5  # Fraction of extra delay at load port
+    min_voyage_days: float = 0.001  # Minimum days to avoid division by zero
 
 
 @dataclass
@@ -300,6 +307,13 @@ class PortDistanceManager:
             ('ROTTERDAM', 'KAMSAR ANCHORAGE'): 3200,
             ('ROTTERDAM', 'ITAGUAI'): 5500,
         }
+
+        # Pre-build normalized lookup for estimated distances
+        self._normalized_estimates: Dict[Tuple[str, str], float] = {}
+        for (port_from, port_to), distance in self.estimated_distances.items():
+            # Add both directions
+            self._normalized_estimates[(port_from.upper(), port_to.upper())] = distance
+            self._normalized_estimates[(port_to.upper(), port_from.upper())] = distance
     
     def _normalize_port(self, port: str) -> List[str]:
         """Get possible port names for fuzzy matching."""
@@ -317,8 +331,8 @@ class PortDistanceManager:
         """Get distance between two ports in nautical miles."""
         from_options = self._normalize_port(port_from)
         to_options = self._normalize_port(port_to)
-        
-        # Try all combinations
+
+        # Try all combinations in main distance table
         for f in from_options:
             for t in to_options:
                 # Direct lookup
@@ -327,18 +341,13 @@ class PortDistanceManager:
                 # Reverse lookup
                 if (t, f) in self.distances:
                     return self.distances[(t, f)]
-        
-        # Check estimated distances
+
+        # Check pre-normalized estimated distances (O(1) lookup per combination)
         for f in from_options:
             for t in to_options:
-                key1 = (f, t)
-                key2 = (t, f)
-                for k in [key1, key2]:
-                    for est_key, dist in self.estimated_distances.items():
-                        if (est_key[0] in k[0] or k[0] in est_key[0]) and \
-                           (est_key[1] in k[1] or k[1] in est_key[1]):
-                            return dist
-        
+                if (f, t) in self._normalized_estimates:
+                    return self._normalized_estimates[(f, t)]
+
         return None
 
 
@@ -349,17 +358,33 @@ class PortDistanceManager:
 class FreightCalculator:
     """
     Professional freight calculator for Capesize voyage analysis.
-    
+
     Calculates voyage economics including:
     - Duration (steaming, port time)
     - Fuel consumption and costs
     - Revenue and commissions
     - Time Charter Equivalent (TCE)
     """
-    
-    def __init__(self, distance_manager: PortDistanceManager, bunker_prices: BunkerPrices):
+
+    def __init__(
+        self,
+        distance_manager: PortDistanceManager,
+        bunker_prices: BunkerPrices,
+        config: Optional[VoyageConfig] = None,
+    ):
         self.distances = distance_manager
         self.bunker_prices = bunker_prices
+        self.config = config or VoyageConfig()
+
+    def _parse_date(self, date_str: str, field_name: str) -> datetime:
+        """Parse a date string with helpful error message."""
+        try:
+            return datetime.strptime(date_str, '%d %b %Y')
+        except ValueError as e:
+            raise ValueError(
+                f"Invalid date format for {field_name}: '{date_str}'. "
+                f"Expected format: 'DD Mon YYYY' (e.g., '25 Feb 2026'). Error: {e}"
+            )
     
     def calculate_voyage(
         self,
@@ -431,44 +456,45 @@ class FreightCalculator:
         # -----------------------------------------------------------------
         # Owner's option: can load up to quantity * (1 + tolerance)
         # But limited by vessel capacity (DWT minus bunkers/stores/constants)
-        # Typical Capesize constants ~3000-5000 MT for bunkers, stores, etc.
         max_by_cargo = int(cargo.quantity * (1 + cargo.quantity_tolerance))
         min_by_cargo = int(cargo.quantity * (1 - cargo.quantity_tolerance))
-        max_by_vessel = vessel.dwt - 3500  # Reserve for bunkers/stores
+        max_by_vessel = vessel.dwt - self.config.vessel_constants
 
         # Maximize cargo within constraints (owner's option to load more)
-        cargo_qty = min(max_by_cargo, max_by_vessel)
+        total_cargo_qty = min(max_by_cargo, max_by_vessel)
 
         # Ensure we meet minimum cargo requirement
-        if cargo_qty < min_by_cargo:
+        if total_cargo_qty < min_by_cargo:
             raise ValueError(f"Vessel {vessel.name} cannot meet minimum cargo requirement for {cargo.name}")
-        
-        # Check half freight threshold
+
+        # Check half freight threshold - split into full rate and half rate quantities
+        full_freight_qty = total_cargo_qty
         half_freight_qty = 0
-        if cargo.half_freight_threshold and cargo_qty > cargo.half_freight_threshold:
-            half_freight_qty = cargo_qty - cargo.half_freight_threshold
-            cargo_qty = cargo.half_freight_threshold  # For full freight calculation
+        if cargo.half_freight_threshold and total_cargo_qty > cargo.half_freight_threshold:
+            full_freight_qty = cargo.half_freight_threshold
+            half_freight_qty = total_cargo_qty - cargo.half_freight_threshold
         
         # -----------------------------------------------------------------
         # 4. PORT TIME
         # -----------------------------------------------------------------
         # Loading time = cargo / load_rate + turn_time
-        load_days = (cargo_qty + half_freight_qty) / cargo.load_rate + cargo.load_turn_time / 24
-        
+        load_days = total_cargo_qty / cargo.load_rate + cargo.load_turn_time / 24
+
         # Discharge time = cargo / discharge_rate + turn_time
-        discharge_days = (cargo_qty + half_freight_qty) / cargo.discharge_rate + cargo.discharge_turn_time / 24
-        
-        # Add scenario delay
-        load_days += extra_port_delay_days / 2  # Split delay between ports
-        discharge_days += extra_port_delay_days / 2
+        discharge_days = total_cargo_qty / cargo.discharge_rate + cargo.discharge_turn_time / 24
+
+        # Add scenario delay (configurable split between load/discharge ports)
+        load_delay_fraction = self.config.port_delay_load_fraction
+        load_days += extra_port_delay_days * load_delay_fraction
+        discharge_days += extra_port_delay_days * (1 - load_delay_fraction)
         
         # -----------------------------------------------------------------
         # 5. LAYCAN CHECK
         # -----------------------------------------------------------------
-        etd = datetime.strptime(vessel.etd, '%d %b %Y')
+        etd = self._parse_date(vessel.etd, f"vessel {vessel.name} ETD")
         arrival_at_loadport = etd + timedelta(days=ballast_days)
-        laycan_start = datetime.strptime(cargo.laycan_start, '%d %b %Y')
-        laycan_end = datetime.strptime(cargo.laycan_end, '%d %b %Y')
+        laycan_start = self._parse_date(cargo.laycan_start, f"cargo {cargo.name} laycan_start")
+        laycan_end = self._parse_date(cargo.laycan_end, f"cargo {cargo.name} laycan_end")
         
         can_make_laycan = arrival_at_loadport <= laycan_end
         
@@ -523,13 +549,13 @@ class FreightCalculator:
         # -----------------------------------------------------------------
         # 9. REVENUE
         # -----------------------------------------------------------------
-        gross_freight = cargo_qty * cargo.freight_rate
+        gross_freight = full_freight_qty * cargo.freight_rate
         if half_freight_qty > 0:
             gross_freight += half_freight_qty * cargo.freight_rate * 0.5
-        
+
         commission_cost = gross_freight * cargo.commission
         net_freight = gross_freight - commission_cost
-        
+
         # -----------------------------------------------------------------
         # 10. OTHER COSTS
         # -----------------------------------------------------------------
@@ -538,12 +564,12 @@ class FreightCalculator:
             hire_cost = total_days * vessel.hire_rate
         else:
             hire_cost = 0  # Market vessel - hire handled separately
-        
+
         # Port costs
         port_costs = cargo.port_cost_load + cargo.port_cost_discharge
-        
-        # Miscellaneous (canal fees, surveys, etc.) - estimate
-        misc_costs = 15000  # Typical for Capesize
+
+        # Miscellaneous (canal fees, surveys, etc.)
+        misc_costs = self.config.misc_costs
         
         # -----------------------------------------------------------------
         # 11. PROFIT CALCULATION
@@ -562,7 +588,7 @@ class FreightCalculator:
         # TCE = (Net Freight - Voyage Costs) / Total Days
         # Voyage costs = bunker + port costs (exclude hire)
         voyage_costs = total_bunker_cost + port_costs + misc_costs
-        tce = (net_freight - voyage_costs) / total_days if total_days > 0 else 0
+        tce = (net_freight - voyage_costs) / total_days if total_days > self.config.min_voyage_days else 0
         
         # -----------------------------------------------------------------
         # 13. BUILD RESULT
@@ -586,7 +612,7 @@ class FreightCalculator:
             waiting_days=round(waiting_days, 2),
             
             # Cargo
-            cargo_quantity=cargo_qty + half_freight_qty,
+            cargo_quantity=total_cargo_qty,
             
             # Revenue
             gross_freight=round(gross_freight, 2),
