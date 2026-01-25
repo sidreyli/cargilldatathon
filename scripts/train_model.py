@@ -2,6 +2,9 @@
 Port Congestion Model Training Script
 =====================================
 Trains a LightGBM model to predict port waiting times.
+
+Run from project root:
+    python scripts/train_model.py
 """
 
 import pandas as pd
@@ -9,13 +12,26 @@ import numpy as np
 from datetime import datetime, timedelta
 import warnings
 import os
+import sys
 import json
 
 warnings.filterwarnings('ignore')
 
+# Setup paths relative to project root
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
+RAW_DATA_DIR = os.path.join(DATA_DIR, 'raw')
+MODELS_DIR = os.path.join(PROJECT_ROOT, 'models')
+SRC_DIR = os.path.join(PROJECT_ROOT, 'src')
+
+# Add src to path for imports
+sys.path.insert(0, SRC_DIR)
+
 print("=" * 60)
 print("PORT CONGESTION PREDICTION MODEL TRAINING")
 print("=" * 60)
+print(f"Project root: {PROJECT_ROOT}")
 
 # Check for required packages
 try:
@@ -39,9 +55,27 @@ except ImportError:
     print("[ERROR] Scikit-learn not installed. Run: pip install scikit-learn")
     exit(1)
 
+try:
+    import shap
+    HAS_SHAP = True
+    print("[OK] SHAP imported")
+except ImportError:
+    HAS_SHAP = False
+    print("[WARN] SHAP not installed. SHAP analysis will be skipped. Run: pip install shap")
+
+try:
+    import matplotlib
+    matplotlib.use('Agg')  # Non-interactive backend for saving plots
+    import matplotlib.pyplot as plt
+    HAS_MATPLOTLIB = True
+    print("[OK] Matplotlib imported")
+except ImportError:
+    HAS_MATPLOTLIB = False
+    print("[WARN] Matplotlib not installed. Plots will be skipped.")
+
 # Local imports
-from ml_models.feature_engineering import FeatureEngineer
-from ml_models.holiday_calendar import HolidayCalendar
+from ml.feature_engineering import FeatureEngineer
+from ml.holiday_calendar import HolidayCalendar
 print("[OK] Local modules imported")
 
 # ============================================================================
@@ -52,10 +86,10 @@ print("1. LOADING DATA")
 print("-" * 60)
 
 print("Loading port activity data (this may take a moment)...")
-activity_df = pd.read_csv('Daily_Port_Activity_Data_and_Trade_Estimates.csv')
+activity_df = pd.read_csv(os.path.join(RAW_DATA_DIR, 'Daily_Port_Activity_Data_and_Trade_Estimates.csv'))
 print(f"   Loaded {len(activity_df):,} rows")
 
-ports_df = pd.read_csv('PortWatch_ports_database.csv')
+ports_df = pd.read_csv(os.path.join(DATA_DIR, 'PortWatch_ports_database.csv'))
 print(f"   Loaded {len(ports_df):,} ports")
 
 # Target port IDs
@@ -89,7 +123,7 @@ print("\n" + "-" * 60)
 print("2. FEATURE ENGINEERING")
 print("-" * 60)
 
-feature_engineer = FeatureEngineer('PortWatch_ports_database.csv')
+feature_engineer = FeatureEngineer(os.path.join(DATA_DIR, 'PortWatch_ports_database.csv'))
 
 # Create target variable and features for each port
 all_features = []
@@ -261,15 +295,85 @@ for i, row in importance_df.head(10).iterrows():
     print(f"   {row['feature']}: {row['importance']:.0f}")
 
 # ============================================================================
+# 6.5 SHAP ANALYSIS (Required by Datathon for Explainability)
+# ============================================================================
+print("\n" + "-" * 60)
+print("6.5. SHAP EXPLAINABILITY ANALYSIS")
+print("-" * 60)
+
+shap_values_dict = {}
+
+if HAS_SHAP and HAS_MATPLOTLIB:
+    print("   Computing SHAP values (this may take a moment)...")
+
+    # Use a sample of training data for SHAP analysis (for efficiency)
+    sample_size = min(1000, len(X_train))
+    X_sample = X_train.sample(n=sample_size, random_state=42)
+
+    # Create SHAP explainer for LightGBM
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(X_sample)
+
+    # Calculate mean absolute SHAP values for each feature
+    mean_shap = np.abs(shap_values).mean(axis=0)
+    shap_importance = pd.DataFrame({
+        'feature': available_features,
+        'mean_shap': mean_shap
+    }).sort_values('mean_shap', ascending=False)
+
+    print("\n   SHAP Feature Importance (Top 10):")
+    for i, row in shap_importance.head(10).iterrows():
+        print(f"      {row['feature']}: {row['mean_shap']:.4f}")
+
+    # Store SHAP values for model_info.json
+    shap_values_dict = {
+        'shap_feature_importance': {
+            row['feature']: float(row['mean_shap'])
+            for _, row in shap_importance.iterrows()
+        },
+        'sample_size': sample_size,
+    }
+
+    # Create and save SHAP summary plot
+    print("\n   Generating SHAP summary plot...")
+    try:
+        plt.figure(figsize=(10, 8))
+        shap.summary_plot(shap_values, X_sample, feature_names=available_features, show=False)
+        plt.tight_layout()
+
+        shap_plot_path = os.path.join(MODELS_DIR, 'shap_summary.png')
+        plt.savefig(shap_plot_path, dpi=150, bbox_inches='tight')
+        plt.close()
+        print(f"   SHAP plot saved to: {shap_plot_path}")
+
+        # Also create a bar plot for cleaner visualization
+        plt.figure(figsize=(10, 6))
+        shap.summary_plot(shap_values, X_sample, feature_names=available_features,
+                          plot_type="bar", show=False)
+        plt.tight_layout()
+
+        shap_bar_path = os.path.join(MODELS_DIR, 'shap_importance_bar.png')
+        plt.savefig(shap_bar_path, dpi=150, bbox_inches='tight')
+        plt.close()
+        print(f"   SHAP bar plot saved to: {shap_bar_path}")
+
+    except Exception as e:
+        print(f"   [WARN] Could not save SHAP plot: {e}")
+
+else:
+    print("   [SKIP] SHAP analysis requires 'shap' and 'matplotlib' packages")
+    print("   To enable: pip install shap matplotlib")
+
+# ============================================================================
 # 7. SAVE MODEL
 # ============================================================================
 print("\n" + "-" * 60)
 print("7. SAVING MODEL")
 print("-" * 60)
 
-os.makedirs('ml_models/saved_models', exist_ok=True)
+os.makedirs(MODELS_DIR, exist_ok=True)
 
-model_path = 'ml_models/saved_models/port_delay_v1.joblib'
+model_path = os.path.join(MODELS_DIR, 'port_delay_v1.joblib')
 joblib.dump(model, model_path)
 print(f"   Model saved to: {model_path}")
 
@@ -285,12 +389,22 @@ model_info = {
         'rmse': float(test_metrics['rmse']),
         'within_1_day_pct': float(test_metrics['within_1_day']),
         'within_2_days_pct': float(test_metrics['within_2_days']),
-    }
+    },
+    'gain_feature_importance': {
+        row['feature']: float(row['importance'])
+        for _, row in importance_df.iterrows()
+    },
 }
 
-with open('ml_models/saved_models/model_info.json', 'w') as f:
+# Add SHAP values if available
+if shap_values_dict:
+    model_info['shap_analysis'] = shap_values_dict
+    model_info['shap_plot_path'] = os.path.join(MODELS_DIR, 'shap_summary.png')
+
+model_info_path = os.path.join(MODELS_DIR, 'model_info.json')
+with open(model_info_path, 'w') as f:
     json.dump(model_info, f, indent=2)
-print("   Model info saved to: ml_models/saved_models/model_info.json")
+print(f"   Model info saved to: {model_info_path}")
 
 # Verify model loads correctly
 loaded_model = joblib.load(model_path)
@@ -304,12 +418,12 @@ print("\n" + "-" * 60)
 print("8. TESTING PREDICTOR CLASS")
 print("-" * 60)
 
-from ml_models.port_congestion_predictor import PortCongestionPredictor
+from ml.port_congestion_predictor import PortCongestionPredictor
 
 predictor = PortCongestionPredictor(
-    model_path='ml_models/saved_models/port_delay_v1.joblib',
-    data_path='Daily_Port_Activity_Data_and_Trade_Estimates.csv',
-    port_database_path='PortWatch_ports_database.csv'
+    model_path=model_path,
+    data_path=os.path.join(RAW_DATA_DIR, 'Daily_Port_Activity_Data_and_Trade_Estimates.csv'),
+    port_database_path=os.path.join(DATA_DIR, 'PortWatch_ports_database.csv')
 )
 
 print(f"   Model available: {predictor.is_model_available()}")
@@ -329,6 +443,6 @@ print("TRAINING COMPLETE!")
 print("=" * 60)
 print(f"\nModel saved to: {model_path}")
 print("Use with:")
-print("  from ml_models import PortCongestionPredictor")
-print("  predictor = PortCongestionPredictor('ml_models/saved_models/port_delay_v1.joblib')")
+print("  from src.ml import PortCongestionPredictor")
+print(f"  predictor = PortCongestionPredictor('{model_path}')")
 print("  delay = predictor.get_delay_for_voyage('Qingdao', '2026-03-15')")

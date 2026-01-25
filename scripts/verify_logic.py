@@ -7,8 +7,21 @@ This script validates:
 3. All Cargill cargoes are covered (by Cargill or market vessels)
 4. Results match expected behavior
 
-Run with: python verify_logic.py
+Run from project root:
+    python scripts/verify_logic.py
 """
+
+import os
+import sys
+
+# Setup paths relative to project root
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
+SRC_DIR = os.path.join(PROJECT_ROOT, 'src')
+
+# Add src to path for imports
+sys.path.insert(0, SRC_DIR)
 
 from freight_calculator import *
 from portfolio_optimizer import *
@@ -17,7 +30,7 @@ from portfolio_optimizer import *
 # SETUP
 # =============================================================================
 
-distance_mgr = PortDistanceManager('Port_Distances.csv')
+distance_mgr = PortDistanceManager(os.path.join(DATA_DIR, 'Port_Distances.csv'))
 bunker_prices = create_bunker_prices()
 calculator = FreightCalculator(distance_mgr, bunker_prices)
 

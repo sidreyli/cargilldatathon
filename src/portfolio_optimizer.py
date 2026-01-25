@@ -16,7 +16,7 @@ import numpy as np
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass, field
 from itertools import combinations, permutations, product
-from freight_calculator import (
+from .freight_calculator import (
     FreightCalculator, PortDistanceManager, BunkerPrices,
     Vessel, Cargo, VoyageResult, VoyageConfig,
     create_cargill_vessels, create_cargill_cargoes,
@@ -28,6 +28,13 @@ try:
     HAS_SCIPY = True
 except ImportError:
     HAS_SCIPY = False
+
+# ML Model availability
+try:
+    from .ml import PortCongestionPredictor
+    HAS_ML_MODEL = True
+except ImportError:
+    HAS_ML_MODEL = False
 
 
 @dataclass
@@ -954,6 +961,144 @@ def print_full_portfolio_report(result: FullPortfolioResult):
             print(f"  * {cargo[:40]}: ${rate:.2f}/MT")
 
 
+def get_ml_port_delays(
+    cargoes: List[Cargo],
+    prediction_date: str = None,
+    model_path: str = None,
+    data_path: str = None,
+) -> Dict[str, Dict]:
+    """
+    Get ML-predicted port delays for all discharge ports in cargoes.
+
+    Args:
+        cargoes: List of Cargo objects
+        prediction_date: Date for predictions (default: auto from cargo laycan)
+        model_path: Path to saved ML model
+        data_path: Path to port activity data
+
+    Returns:
+        Dict mapping port names to delay info:
+        {
+            'Qingdao': {
+                'predicted_delay': 4.2,
+                'confidence_lower': 3.4,
+                'confidence_upper': 5.0,
+                'congestion_level': 'medium',
+                'model_used': 'ml_model'
+            },
+            ...
+        }
+    """
+    import os
+    from datetime import datetime, timedelta
+
+    # Resolve default paths relative to project root
+    if model_path is None or data_path is None:
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if model_path is None:
+            model_path = os.path.join(project_root, 'models', 'port_delay_v1.joblib')
+        if data_path is None:
+            data_path = os.path.join(project_root, 'data', 'raw', 'Daily_Port_Activity_Data_and_Trade_Estimates.csv')
+
+    if not HAS_ML_MODEL:
+        print("Warning: ML model not available, using default delays")
+        return {}
+
+    # Initialize predictor
+    try:
+        predictor = PortCongestionPredictor(
+            model_path=model_path,
+            data_path=data_path,
+        )
+    except Exception as e:
+        print(f"Warning: Could not initialize ML predictor: {e}")
+        return {}
+
+    # Get unique discharge ports
+    discharge_ports = list(set(c.discharge_port for c in cargoes))
+
+    # Use prediction date from first cargo laycan if not specified
+    if prediction_date is None:
+        prediction_date = (datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d')
+
+    results = {}
+    for port in discharge_ports:
+        try:
+            pred = predictor.predict(port, prediction_date)
+            results[port] = {
+                'predicted_delay': pred.predicted_delay_days,
+                'confidence_lower': pred.confidence_lower,
+                'confidence_upper': pred.confidence_upper,
+                'congestion_level': pred.congestion_level,
+                'model_used': pred.model_used,
+            }
+        except Exception as e:
+            print(f"Warning: Could not predict delay for {port}: {e}")
+            results[port] = {
+                'predicted_delay': 3.0,
+                'confidence_lower': 1.5,
+                'confidence_upper': 4.5,
+                'congestion_level': 'unknown',
+                'model_used': 'fallback',
+            }
+
+    return results
+
+
+def optimize_with_ml_delays(
+    calculator,
+    vessels: List[Vessel],
+    cargoes: List[Cargo],
+    prediction_date: str = None,
+    use_eco_speed: bool = True,
+    maximize: str = 'profit',
+) -> Tuple[PortfolioResult, PortfolioResult, Dict[str, Dict]]:
+    """
+    Run portfolio optimization with and without ML-predicted delays.
+
+    Returns comparison of baseline (no delays) vs ML-adjusted optimization.
+
+    Args:
+        calculator: FreightCalculator instance
+        vessels: List of vessels
+        cargoes: List of cargoes
+        prediction_date: Date for ML predictions
+        use_eco_speed: Whether to use eco speed
+        maximize: Optimization target ('profit' or 'tce')
+
+    Returns:
+        Tuple of (baseline_result, ml_adjusted_result, port_delays_dict)
+    """
+    optimizer = PortfolioOptimizer(calculator)
+
+    # Get ML-predicted delays
+    ml_delays = get_ml_port_delays(cargoes, prediction_date)
+
+    # Extract just the delay values for the optimizer
+    port_delays_dict = {
+        port: info['predicted_delay']
+        for port, info in ml_delays.items()
+    }
+
+    # Baseline optimization (no delays)
+    baseline_result = optimizer.optimize_assignments(
+        vessels, cargoes,
+        use_eco_speed=use_eco_speed,
+        maximize=maximize,
+        extra_port_delay=0,
+    )
+
+    # ML-adjusted optimization
+    ml_result = optimizer.optimize_assignments(
+        vessels, cargoes,
+        use_eco_speed=use_eco_speed,
+        maximize=maximize,
+        port_delays=port_delays_dict,
+    )
+
+    return baseline_result, ml_result, ml_delays
+
+
 class ScenarioAnalyzer:
     """
     Performs scenario analysis to find tipping points.
@@ -1128,10 +1273,17 @@ class ScenarioAnalyzer:
 
         # Try to load ML predictor
         try:
-            from ml_models import PortCongestionPredictor
+            import os
+            from .ml import PortCongestionPredictor
+
+            # Resolve paths relative to project root
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            model_path = os.path.join(project_root, 'models', 'port_delay_v1.joblib')
+            data_path = os.path.join(project_root, 'data', 'raw', 'Daily_Port_Activity_Data_and_Trade_Estimates.csv')
+
             predictor = PortCongestionPredictor(
-                model_path='ml_models/saved_models/port_delay_v1.joblib',
-                data_path='Daily_Port_Activity_Data_and_Trade_Estimates.csv',
+                model_path=model_path,
+                data_path=data_path,
             )
             result['ml_available'] = predictor.is_model_available()
         except ImportError:
@@ -1267,12 +1419,23 @@ def print_optimization_report(
 # =============================================================================
 
 if __name__ == "__main__":
+    import os
+    import sys
+
+    # Add project root to path for running this file directly
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, project_root)
+
+    # Data paths relative to project root
+    data_dir = os.path.join(project_root, 'data')
+    models_dir = os.path.join(project_root, 'models')
+
     print("=" * 80)
     print("CARGILL DATATHON 2026 - FULL PORTFOLIO OPTIMIZATION")
     print("=" * 80)
 
     # Initialize
-    distance_mgr = PortDistanceManager('Port_Distances.csv')
+    distance_mgr = PortDistanceManager(os.path.join(data_dir, 'Port_Distances.csv'))
     bunker_prices = create_bunker_prices()
     calculator = FreightCalculator(distance_mgr, bunker_prices)
 
@@ -1476,3 +1639,50 @@ For the BHP Iron Ore cargo (Australia-China, laycan March 7-11):
 * Consider hiring PACIFIC VANGUARD (market vessel at Caofeidian, ETD Feb 26)
   to carry the BHP cargo
     """)
+
+    # ==========================================================================
+    # ML-BASED PORT DELAY ANALYSIS
+    # ==========================================================================
+
+    print("\n\n" + "=" * 80)
+    print("ML-BASED PORT CONGESTION ANALYSIS")
+    print("=" * 80)
+
+    if HAS_ML_MODEL:
+        print("\n   Loading ML model and predicting port delays...")
+
+        # Get ML-predicted delays
+        ml_delays = get_ml_port_delays(
+            cargill_cargoes,
+            prediction_date='2026-03-15',
+        )
+
+        if ml_delays:
+            print("\n   ML-Predicted Port Delays (for March 2026):")
+            print("   " + "-" * 50)
+            for port, info in ml_delays.items():
+                model_tag = "[ML]" if info['model_used'] == 'ml_model' else "[Fallback]"
+                print(f"   {port:20s}: {info['predicted_delay']:.1f} days "
+                      f"[{info['confidence_lower']:.1f}-{info['confidence_upper']:.1f}] "
+                      f"({info['congestion_level']}) {model_tag}")
+
+            # Run comparison
+            baseline_result, ml_result, _ = optimize_with_ml_delays(
+                calculator, cargill_vessels, cargill_cargoes,
+                prediction_date='2026-03-15',
+            )
+
+            print("\n   Profit Comparison:")
+            print("   " + "-" * 50)
+            print(f"   Baseline (no delays):     ${baseline_result.total_profit:>12,.0f}")
+            print(f"   ML-adjusted (predicted):  ${ml_result.total_profit:>12,.0f}")
+            profit_impact = ml_result.total_profit - baseline_result.total_profit
+            print(f"   Impact from port delays:  ${profit_impact:>12,.0f}")
+
+            if baseline_result.assignments != ml_result.assignments:
+                print("\n   Note: Assignment strategy changes with ML-predicted delays")
+        else:
+            print("   [WARN] Could not get ML predictions, using fallback estimates")
+    else:
+        print("\n   [SKIP] ML model not available")
+        print("   To enable: python train_model.py")

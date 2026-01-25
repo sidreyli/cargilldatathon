@@ -3,6 +3,52 @@ Feature Engineering for Port Congestion Prediction
 ===================================================
 Creates lag features, rolling statistics, and temporal features
 from port activity data.
+
+METHODOLOGY DOCUMENTATION
+=========================
+
+Target Variable (Synthetic Delay Proxy)
+---------------------------------------
+Since actual port waiting time data is not available in the dataset,
+we construct a **synthetic target variable** as a proxy for port congestion
+delays. This approach is documented here for transparency.
+
+Formula:
+    delay_days = base_delay + scaling_factor * (portcalls/baseline_capacity - 1)
+
+Where:
+- base_delay: Historical average waiting time for the port (2-4 days typically)
+- scaling_factor: How much delay increases per unit of congestion (default: 5.0)
+- portcalls: Daily dry bulk port calls (from dataset)
+- baseline_capacity: Estimated normal daily throughput capacity
+
+Rationale:
+1. Port calls (portcalls_dry_bulk) is a direct measure of port activity
+2. Higher activity relative to capacity = longer queues = more delay
+3. The scaling factor was calibrated based on industry knowledge that
+   delays typically range from 0-15 days for Capesize bulk carriers
+
+Limitations:
+1. This is a PROXY, not actual measured waiting times
+2. Does not account for vessel-specific factors (priority, agent relationships)
+3. Does not model sudden disruptions (labor strikes, equipment failures)
+4. Assumes linear relationship between congestion and delay
+5. Base delays are estimates, not measured historical averages
+
+Validation Approach:
+- Model predictions are validated against the synthetic target
+- Actual deployment should compare predictions to real waiting times
+- Industry experts should review reasonableness of predictions
+
+Feature Engineering
+-------------------
+Features are constructed to capture:
+1. Recent activity levels (7/14/30-day lags and rolling averages)
+2. Activity trends (momentum indicators)
+3. Seasonal patterns (holidays, monsoon, typhoon season)
+4. Port characteristics (capacity, location)
+
+The model uses LightGBM for gradient boosting regression.
 """
 
 import pandas as pd
@@ -94,6 +140,11 @@ class FeatureEngineer:
         """
         Create congestion proxy target variable.
 
+        IMPORTANT: This is a SYNTHETIC target, not measured waiting times.
+        The proxy assumes higher port activity relative to capacity leads
+        to proportionally longer waiting times. See module docstring for
+        full methodology documentation and limitations.
+
         Formula:
         delay_days = base_delay + scaling_factor * (portcalls/baseline_capacity - 1)
 
@@ -103,7 +154,7 @@ class FeatureEngineer:
             scaling_factor: How much delay increases per unit congestion
 
         Returns:
-            Series with delay_days values
+            Series with delay_days values (synthetic proxy, 0-15 day range)
         """
         if port_id not in self.TARGET_PORTS:
             raise ValueError(f"Unknown port: {port_id}")

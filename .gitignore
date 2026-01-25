@@ -1,6 +1,3 @@
-# Exclude claude.md
-claude.md
-
 # Python
 __pycache__/
 *.py[cod]
@@ -19,10 +16,16 @@ ENV/
 .vscode/
 .idea/
 
-# data / large files
-*.csv
-data/
-raw/
-processed/
+# Large data files (raw data that shouldn't be in git)
+data/raw/
+
+# Saved ML models (can be regenerated)
+models/*.joblib
+models/*.png
+
+# Claude Code config
 .claude/
 
+# OS
+.DS_Store
+Thumbs.db

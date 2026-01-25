@@ -57,16 +57,39 @@ class PortCongestionPredictor:
 
     # Port name to ID mapping
     PORT_MAPPING: Dict[str, str] = {
+        # China - primary ports
         'qingdao': 'port1069',
         'rizhao': 'port1105',
         'fangcheng': 'port339',
         'caofeidian': 'port1266',
+        # China - variations/nearby ports (use closest model)
+        'lianyungang': 'port1069',  # Nearby Qingdao, use same model
+        'tianjin': 'port1266',      # Use Caofeidian model
+        'xingang': 'port1266',      # Tianjin Xingang
+        'tangshan': 'port1266',     # Near Caofeidian
+        'bayuquan': 'port1266',     # Northern China
+        'yingkou': 'port1266',      # Northern China
+        # India - primary ports
         'mundra': 'port777',
         'vizag': 'port1367',
         'visakhapatnam': 'port1367',
-        # Add common variations
-        'lianyungang': 'port1069',  # Nearby Qingdao, use same model
-        'tianjin': 'port1266',      # Use Caofeidian model
+        # India - additional ports
+        'krishnapatnam': 'port1367',  # East coast, use Vizag model
+        'mangalore': 'port777',        # West coast, use Mundra model
+        'paradip': 'port1367',         # East coast, use Vizag model
+        'kandla': 'port777',           # West coast, use Mundra model
+        'gangavaram': 'port1367',      # Near Vizag
+        # South Korea
+        'gwangyang': 'korea_default',  # Uses fallback with Korea adjustments
+        'pohang': 'korea_default',
+        'incheon': 'korea_default',
+        # Malaysia
+        'telukrubiah': 'malaysia_default',  # Uses fallback
+        'portklangs': 'malaysia_default',
+        'tanjungpelepas': 'malaysia_default',
+        # South Africa
+        'saldanha': 'safrica_default',
+        'richardsbay': 'safrica_default',
     }
 
     # Port ID to country mapping
@@ -77,18 +100,47 @@ class PortCongestionPredictor:
         'port1266': 'CHN',
         'port777': 'IND',
         'port1367': 'IND',
+        # Regional defaults
+        'korea_default': 'KOR',
+        'malaysia_default': 'MYS',
+        'safrica_default': 'ZAF',
     }
 
-    # Default delays when model unavailable
+    # Default delays when model unavailable (days)
+    # Based on industry estimates for Capesize bulk carriers
     DEFAULT_DELAYS: Dict[str, float] = {
+        # China - major dry bulk ports (higher congestion)
         'qingdao': 4.0,
         'rizhao': 3.5,
         'caofeidian': 4.5,
         'fangcheng': 3.0,
-        'mundra': 2.5,
-        'vizag': 2.0,
         'lianyungang': 4.0,
         'tianjin': 4.5,
+        'xingang': 4.5,
+        'tangshan': 4.0,
+        'bayuquan': 3.5,
+        'yingkou': 3.5,
+        # India - west coast (affected by monsoon June-Sept)
+        'mundra': 2.5,
+        'kandla': 3.0,
+        'mangalore': 2.5,
+        # India - east coast
+        'vizag': 2.0,
+        'visakhapatnam': 2.0,
+        'krishnapatnam': 2.5,
+        'paradip': 2.5,
+        'gangavaram': 2.0,
+        # South Korea - efficient ports
+        'gwangyang': 1.5,
+        'pohang': 1.5,
+        'incheon': 2.0,
+        # Malaysia
+        'telukrubiah': 2.0,
+        'portklangs': 2.5,
+        'tanjungpelepas': 2.0,
+        # South Africa
+        'saldanha': 2.5,
+        'richardsbay': 3.0,
     }
 
     def __init__(
@@ -181,6 +233,8 @@ class PortCongestionPredictor:
         - CNY pre-rush (increases congestion)
         - Golden Week
         - Monsoon (India ports)
+        - Typhoon season (China/Korea ports)
+        - Winter weather (northern China ports)
         """
         country = self.PORT_COUNTRIES.get(port_id, 'CHN')
         adjustment = 0.0
@@ -199,15 +253,45 @@ class PortCongestionPredictor:
             if HolidayCalendar.is_golden_week(check_date):
                 adjustment += 1.5
 
+            # Typhoon season (July-October)
+            # Affects eastern/southern ports more
+            typhoon_risk = HolidayCalendar.get_typhoon_risk(check_date)
+            if typhoon_risk > 0:
+                # More impact on Qingdao (eastern) than Caofeidian (northern)
+                if port_id in ('port1069', 'port1105'):  # Qingdao, Rizhao
+                    adjustment += typhoon_risk * 1.5
+                elif port_id == 'port339':  # Fangcheng (southern)
+                    adjustment += typhoon_risk * 2.0
+                else:
+                    adjustment += typhoon_risk * 0.5
+
+            # Winter weather (December-February)
+            # Primarily affects northern ports (Caofeidian, Tianjin area)
+            if HolidayCalendar.is_winter_north_china(check_date):
+                if port_id == 'port1266':  # Caofeidian - most northern
+                    adjustment += 1.5  # Ice and fog delays
+                elif port_id in ('port1069', 'port1105'):  # Qingdao, Rizhao
+                    adjustment += 0.5  # Minor winter impact
+
         elif country == 'IND':
             # Monsoon effect on west coast ports
-            if port_id == 'port777' and HolidayCalendar.is_monsoon_india(check_date):
-                # Mundra - west coast, affected by monsoon
-                adjustment += 1.5
+            if port_id == 'port777':  # Mundra - west coast
+                monsoon_intensity = HolidayCalendar.get_monsoon_intensity(check_date)
+                if monsoon_intensity > 0:
+                    # Higher intensity = more delay
+                    adjustment += 2.0 * monsoon_intensity
 
             # Diwali
             if HolidayCalendar.is_diwali(check_date):
                 adjustment += 1.0
+
+        elif country == 'KOR':
+            # South Korea - some typhoon exposure
+            typhoon_risk = HolidayCalendar.get_typhoon_risk(check_date)
+            if typhoon_risk > 0:
+                adjustment += typhoon_risk * 0.5
+
+        # Note: Malaysia and South Africa have minimal seasonal variation
 
         return adjustment
 

@@ -53,6 +53,14 @@ class HolidayCalendar:
     MONSOON_INDIA_START = '06-01'
     MONSOON_INDIA_END = '09-30'
 
+    # China Typhoon Season (affects southern and eastern coastal ports)
+    TYPHOON_SEASON_START = '07-01'
+    TYPHOON_SEASON_END = '10-31'
+
+    # Winter Impact (affects northern China ports - ice/fog)
+    WINTER_NORTH_CHINA_START = '12-01'
+    WINTER_NORTH_CHINA_END = '02-28'
+
     @classmethod
     def is_cny(cls, check_date: date) -> bool:
         """Check if date falls within Chinese New Year period."""
@@ -112,6 +120,46 @@ class HolidayCalendar:
         return 6 <= month <= 9
 
     @classmethod
+    def is_typhoon_season(cls, check_date: date) -> bool:
+        """Check if date falls within China typhoon season (July-October)."""
+        month = check_date.month
+        return 7 <= month <= 10
+
+    @classmethod
+    def is_winter_north_china(cls, check_date: date) -> bool:
+        """Check if date falls within northern China winter (Dec-Feb)."""
+        month = check_date.month
+        return month in (12, 1, 2)
+
+    @classmethod
+    def get_monsoon_intensity(cls, check_date: date) -> float:
+        """
+        Get monsoon intensity factor (0.0 to 1.0).
+
+        Peak intensity in July-August, lower at start/end of season.
+        """
+        month = check_date.month
+        if month < 6 or month > 9:
+            return 0.0
+        # June: 0.5, July: 1.0, August: 1.0, September: 0.5
+        intensity_map = {6: 0.5, 7: 1.0, 8: 1.0, 9: 0.5}
+        return intensity_map.get(month, 0.0)
+
+    @classmethod
+    def get_typhoon_risk(cls, check_date: date) -> float:
+        """
+        Get typhoon risk factor (0.0 to 1.0).
+
+        Peak risk in August-September, moderate in July and October.
+        """
+        month = check_date.month
+        if month < 7 or month > 10:
+            return 0.0
+        # July: 0.4, August: 1.0, September: 1.0, October: 0.3
+        risk_map = {7: 0.4, 8: 1.0, 9: 1.0, 10: 0.3}
+        return risk_map.get(month, 0.0)
+
+    @classmethod
     def is_diwali(cls, check_date: date) -> bool:
         """Check if date falls within Diwali period."""
         year = check_date.year
@@ -131,7 +179,8 @@ class HolidayCalendar:
 
         Args:
             check_date: Date to check
-            country: ISO3 country code ('CHN' for China, 'IND' for India)
+            country: ISO3 country code ('CHN' for China, 'IND' for India,
+                     'KOR' for South Korea, 'MYS' for Malaysia, 'ZAF' for South Africa)
 
         Returns:
             Dict with all seasonal indicator features
@@ -142,15 +191,39 @@ class HolidayCalendar:
             'is_golden_week': 1.0 if cls.is_golden_week(check_date) else 0.0,
             'is_monsoon_india': 1.0 if cls.is_monsoon_india(check_date) else 0.0,
             'is_diwali': 1.0 if cls.is_diwali(check_date) else 0.0,
+            # Weather factors
+            'is_typhoon_season': 1.0 if cls.is_typhoon_season(check_date) else 0.0,
+            'typhoon_risk': cls.get_typhoon_risk(check_date),
+            'is_winter_north_china': 1.0 if cls.is_winter_north_china(check_date) else 0.0,
+            'monsoon_intensity': cls.get_monsoon_intensity(check_date),
         }
 
         # Apply country-specific logic
         if country == 'CHN':
             features['is_monsoon_india'] = 0.0
             features['is_diwali'] = 0.0
+            features['monsoon_intensity'] = 0.0
         elif country == 'IND':
             features['is_cny'] = 0.0
             features['cny_proximity_days'] = 0
             features['is_golden_week'] = 0.0
+            features['is_typhoon_season'] = 0.0
+            features['typhoon_risk'] = 0.0
+            features['is_winter_north_china'] = 0.0
+        elif country in ('KOR', 'MYS', 'ZAF'):
+            # South Korea, Malaysia, South Africa - minimal holiday impact
+            features['is_cny'] = 0.0
+            features['cny_proximity_days'] = 0
+            features['is_golden_week'] = 0.0
+            features['is_monsoon_india'] = 0.0
+            features['is_diwali'] = 0.0
+            features['monsoon_intensity'] = 0.0
+            # Korea has some typhoon risk
+            if country == 'KOR':
+                features['typhoon_risk'] = cls.get_typhoon_risk(check_date) * 0.5
+            else:
+                features['is_typhoon_season'] = 0.0
+                features['typhoon_risk'] = 0.0
+            features['is_winter_north_china'] = 0.0
 
         return features
