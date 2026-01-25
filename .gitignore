@@ -18,3 +18,11 @@ ENV/
 # IDE
 .vscode/
 .idea/
+
+# data / large files
+*.csv
+data/
+raw/
+processed/
+.claude/
+

@@ -1,0 +1,47 @@
+{
+  "model_version": "v1",
+  "training_date": "2026-01-25T23:38:23.203761",
+  "features": [
+    "portcalls_dry_bulk_lag7",
+    "portcalls_dry_bulk_lag14",
+    "portcalls_dry_bulk_lag30",
+    "portcalls_dry_bulk_rolling7_mean",
+    "portcalls_dry_bulk_rolling7_std",
+    "portcalls_dry_bulk_rolling14_mean",
+    "portcalls_dry_bulk_rolling14_std",
+    "portcalls_dry_bulk_rolling30_mean",
+    "portcalls_dry_bulk_rolling30_std",
+    "import_dry_bulk_rolling7_mean",
+    "import_dry_bulk_rolling7_sum",
+    "import_dry_bulk_rolling30_sum",
+    "import_dry_bulk_momentum",
+    "feat_day_of_week",
+    "feat_month",
+    "feat_week_of_year",
+    "feat_quarter",
+    "feat_is_weekend",
+    "is_cny",
+    "cny_proximity_days",
+    "is_golden_week",
+    "is_monsoon_india",
+    "is_diwali",
+    "port_capacity_ratio",
+    "is_china",
+    "is_india"
+  ],
+  "target_ports": {
+    "port1069": "Qingdao",
+    "port1105": "Rizhao",
+    "port339": "Fangcheng",
+    "port1266": "Caofeidian",
+    "port777": "Mundra",
+    "port1367": "Vizag"
+  },
+  "best_iteration": 978,
+  "test_metrics": {
+    "mae": 0.06372039178164694,
+    "rmse": 0.12136680405116082,
+    "within_1_day_pct": 99.8062015503876,
+    "within_2_days_pct": 100.0
+  }
+}

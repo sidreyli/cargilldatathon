@@ -1,0 +1,28 @@
+# Cargill Ocean Transportation Datathon 2026 - Requirements
+# =========================================================
+
+# Core dependencies
+pandas>=1.5.0
+numpy>=1.21.0
+
+# Optimization
+scipy>=1.9.0
+
+# Machine Learning - Port Congestion Model
+lightgbm>=3.3.0
+joblib>=1.2.0
+scikit-learn>=1.0.0
+
+# Optional: Holiday detection (alternative to custom calendar)
+# holidays>=0.25
+
+# Visualization (for training notebook)
+matplotlib>=3.5.0
+seaborn>=0.12.0
+
+# SHAP for feature importance analysis
+shap>=0.41.0
+
+# Jupyter for training notebook
+jupyter>=1.0.0
+ipykernel>=6.0.0

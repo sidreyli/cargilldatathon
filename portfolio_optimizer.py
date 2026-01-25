@@ -108,21 +108,42 @@ class PortfolioOptimizer:
         use_eco_speed: bool = True,
         extra_port_delay: float = 0,
         bunker_adjustment: float = 1.0,
+        port_delays: Optional[Dict[str, float]] = None,
     ) -> pd.DataFrame:
         """
         Calculate voyage economics for all vessel-cargo combinations.
-        
+
+        Args:
+            vessels: List of vessels
+            cargoes: List of cargoes
+            use_eco_speed: Whether to use eco speed
+            extra_port_delay: Base extra delay to add to all voyages
+            bunker_adjustment: Bunker price multiplier
+            port_delays: Optional dict mapping port names to delay days
+                         e.g., {"Qingdao": 3.5, "Mundra": 2.0}
+                         If provided, overrides extra_port_delay for matching ports
+
         Returns DataFrame with all results.
         """
         results = []
-        
+
         for vessel in vessels:
             for cargo in cargoes:
                 try:
+                    # Determine port-specific delay
+                    delay = extra_port_delay
+                    if port_delays:
+                        # Check for discharge port in port_delays dict
+                        port_name = cargo.discharge_port.upper()
+                        for key, value in port_delays.items():
+                            if key.upper() in port_name or port_name in key.upper():
+                                delay = value
+                                break
+
                     result = self.calculator.calculate_voyage(
                         vessel, cargo,
                         use_eco_speed=use_eco_speed,
-                        extra_port_delay_days=extra_port_delay,
+                        extra_port_delay_days=delay,
                         bunker_price_adjustment=bunker_adjustment,
                     )
                     
@@ -166,6 +187,7 @@ class PortfolioOptimizer:
         bunker_adjustment: float = 1.0,
         maximize: str = 'profit',  # 'profit' or 'tce'
         include_negative_profit: bool = False,  # Whether to assign voyages with negative profit
+        port_delays: Optional[Dict[str, float]] = None,
     ) -> PortfolioResult:
         """
         Find optimal vessel-cargo assignments.
@@ -187,7 +209,8 @@ class PortfolioOptimizer:
         """
         # Calculate all voyage options
         df = self.calculate_all_voyages(
-            vessels, cargoes, use_eco_speed, extra_port_delay, bunker_adjustment
+            vessels, cargoes, use_eco_speed, extra_port_delay, bunker_adjustment,
+            port_delays=port_delays
         )
 
         # Filter to only valid voyages (can make laycan)
@@ -1067,6 +1090,91 @@ class ScenarioAnalyzer:
                 break
 
         return tipping_points
+
+    def analyze_port_delay_with_ml(
+        self,
+        vessels: List[Vessel],
+        cargoes: List[Cargo],
+        prediction_date: str = None,
+    ) -> Dict:
+        """
+        Analyze port delay impact using ML-predicted delays.
+
+        Uses the PortCongestionPredictor to get per-port delay predictions
+        and calculates portfolio impact.
+
+        Args:
+            vessels: List of vessels
+            cargoes: List of cargoes
+            prediction_date: Date for predictions (default: today + 30 days)
+
+        Returns:
+            Dict with ML-predicted delays and portfolio comparison
+        """
+        from datetime import datetime, timedelta
+
+        # Set default prediction date
+        if prediction_date is None:
+            prediction_date = (datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d')
+
+        result = {
+            'prediction_date': prediction_date,
+            'port_delays': {},
+            'ml_available': False,
+            'baseline_profit': 0,
+            'ml_adjusted_profit': 0,
+            'profit_difference': 0,
+        }
+
+        # Try to load ML predictor
+        try:
+            from ml_models import PortCongestionPredictor
+            predictor = PortCongestionPredictor(
+                model_path='ml_models/saved_models/port_delay_v1.joblib',
+                data_path='Daily_Port_Activity_Data_and_Trade_Estimates.csv',
+            )
+            result['ml_available'] = predictor.is_model_available()
+        except ImportError:
+            predictor = None
+
+        # Get unique discharge ports
+        discharge_ports = list(set(c.discharge_port for c in cargoes))
+
+        # Get predictions for each port
+        if predictor:
+            for port in discharge_ports:
+                try:
+                    pred_result = predictor.predict(port, prediction_date)
+                    result['port_delays'][port] = {
+                        'predicted_delay': pred_result.predicted_delay_days,
+                        'confidence_lower': pred_result.confidence_lower,
+                        'confidence_upper': pred_result.confidence_upper,
+                        'congestion_level': pred_result.congestion_level,
+                    }
+                except Exception as e:
+                    result['port_delays'][port] = {
+                        'predicted_delay': 3.0,  # Default
+                        'error': str(e),
+                    }
+
+        # Calculate baseline (no delay)
+        baseline = self.optimizer.optimize_assignments(vessels, cargoes)
+        result['baseline_profit'] = baseline.total_profit
+
+        # Calculate with ML-predicted delays
+        if result['port_delays']:
+            port_delays_dict = {
+                port: info['predicted_delay']
+                for port, info in result['port_delays'].items()
+                if 'predicted_delay' in info
+            }
+            ml_adjusted = self.optimizer.optimize_assignments(
+                vessels, cargoes, port_delays=port_delays_dict
+            )
+            result['ml_adjusted_profit'] = ml_adjusted.total_profit
+            result['profit_difference'] = ml_adjusted.total_profit - baseline.total_profit
+
+        return result
 
 
 def print_optimization_report(
