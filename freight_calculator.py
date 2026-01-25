@@ -14,7 +14,7 @@ This module calculates:
 import pandas as pd
 import numpy as np
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, Set
 from datetime import datetime, timedelta
 
 
@@ -192,24 +192,57 @@ class VoyageResult:
 # PORT DISTANCE MANAGER
 # =============================================================================
 
+import warnings
+import logging
+
+# Configure logging for distance lookups
+logging.basicConfig(level=logging.INFO)
+distance_logger = logging.getLogger('PortDistanceManager')
+
+
+class DistanceSource:
+    """Enum-like class for distance sources."""
+    CSV = 'CSV'
+    CSV_REVERSE = 'CSV_REVERSE'
+    ESTIMATE = 'ESTIMATE'
+    NOT_FOUND = 'NOT_FOUND'
+
+
 class PortDistanceManager:
-    """Manages port-to-port distance lookups with fuzzy matching."""
-    
-    def __init__(self, csv_path: str = 'Port_Distances.csv'):
+    """
+    Manages port-to-port distance lookups with fuzzy matching.
+
+    Lookup priority:
+    1. CSV file (direct match)
+    2. CSV file (reverse direction)
+    3. Estimated distances (hardcoded fallback)
+
+    Logging:
+    - INFO: When estimated distances are used
+    - WARNING: When no distance is found
+    """
+
+    def __init__(self, csv_path: str = 'Port_Distances.csv', verbose: bool = False):
+        self.verbose = verbose
         self.df = pd.read_csv(csv_path)
         self.df['PORT_NAME_FROM'] = self.df['PORT_NAME_FROM'].str.upper()
         self.df['PORT_NAME_TO'] = self.df['PORT_NAME_TO'].str.upper()
-        
+
         # Build lookup dict for speed
         self.distances = {}
         for _, row in self.df.iterrows():
             key = (row['PORT_NAME_FROM'], row['PORT_NAME_TO'])
             self.distances[key] = row['DISTANCE']
-        
+
+        # Track usage statistics
+        self._lookup_stats = {'csv': 0, 'csv_reverse': 0, 'estimate': 0, 'not_found': 0}
+        self._estimate_usage = {}  # Track which estimates are actually used
+
         # Port name mapping for common variations
         self.port_aliases = {
             'QINGDAO': ['QINGDAO', 'DAGANG (QINGDAO)'],
             'KAMSAR': ['KAMSAR ANCHORAGE', 'PORT KAMSAR'],
+            'KAMSAR ANCHORAGE': ['KAMSAR ANCHORAGE', 'PORT KAMSAR'],  # Allow both directions
             'SINGAPORE': ['SINGAPORE'],
             'PORT HEDLAND': ['PORT HEDLAND'],
             'ITAGUAI': ['ITAGUAI'],
@@ -229,7 +262,7 @@ class PortDistanceManager:
             'TIANJIN': ['TIANJIN', 'XINGANG'],
             'TABONEO': ['TABONEO'],
             'KRISHNAPATNAM': ['KRISHNAPATNAM'],
-            'VANCOUVER': ['VANCOUVER'],
+            'VANCOUVER': ['VANCOUVER', 'VANCOUVER (CANADA)'],  # Added CSV variant
             'MANGALORE': ['MANGALORE', 'NEW MANGALORE'],
             'TELUK RUBIAH': ['TELUK RUBIAH'],
             'PORT TALBOT': ['PORT TALBOT'],
@@ -240,72 +273,118 @@ class PortDistanceManager:
             'SHANGHAI': ['SHANGHAI'],
         }
         
-        # Estimated distances for missing routes (based on typical shipping distances)
+        # =================================================================
+        # ESTIMATED DISTANCES - Only for routes NOT in Port_Distances.csv
+        # =================================================================
+        # These are fallback estimates used ONLY when CSV lookup fails.
+        # CSV lookup takes priority and should cover most routes.
+        #
+        # NOTE: Estimates were validated against CSV on 2026-01-25.
+        #       Routes that exist in CSV have been removed.
+        #       Remaining estimates are for routes truly missing from CSV.
+        # =================================================================
+
         self.estimated_distances = {
-            # Existing estimates
-            ('SINGAPORE', 'PORT HEDLAND'): 1678,
-            ('MAP TA PHUT', 'PORT HEDLAND'): 2800,
-            ('MAP TA PHUT', 'KAMSAR ANCHORAGE'): 9500,
-            ('MAP TA PHUT', 'ITAGUAI'): 12500,
-            ('GWANGYANG', 'KAMSAR ANCHORAGE'): 11500,
-            ('GWANGYANG', 'PORT HEDLAND'): 3800,
-            ('GWANGYANG', 'ITAGUAI'): 11800,
+            # -----------------------------------------------------------------
+            # MAP TA PHUT (Thailand) - Limited coverage in CSV
+            # Vessel: OCEAN HORIZON starts here
+            # -----------------------------------------------------------------
+            ('MAP TA PHUT', 'PORT HEDLAND'): 2800,       # ~9.3 days at 12.5 kn
+            ('MAP TA PHUT', 'KAMSAR ANCHORAGE'): 9500,   # ~31.7 days at 12.5 kn
+            ('MAP TA PHUT', 'ITAGUAI'): 12500,           # ~41.7 days at 12.5 kn
+            ('MAP TA PHUT', 'DAMPIER'): 2700,            # Similar to Port Hedland
+            ('MAP TA PHUT', 'TUBARAO'): 12600,           # Similar to Itaguai
+            ('MAP TA PHUT', 'SALDANHA BAY'): 6800,       # Via Indian Ocean
 
-            # New vessel positions to load ports
-            ('PORT TALBOT', 'KAMSAR ANCHORAGE'): 2800,
-            ('PORT TALBOT', 'PORT HEDLAND'): 11500,
-            ('PORT TALBOT', 'ITAGUAI'): 5200,
-            ('PORT TALBOT', 'DAMPIER'): 11600,
-            ('PORT TALBOT', 'TUBARAO'): 5100,
-            ('PORT TALBOT', 'VANCOUVER'): 7800,
+            # -----------------------------------------------------------------
+            # GWANGYANG (S. Korea) - CSV only has LNG Terminal variant
+            # Vessel: PACIFIC GLORY, MOUNTAIN TRADER start here
+            # Note: PORT HEDLAND route exists via GWANGYANG LNG TERMINAL alias
+            # -----------------------------------------------------------------
+            ('GWANGYANG', 'KAMSAR ANCHORAGE'): 11500,    # ~38.3 days at 12.5 kn
+            ('GWANGYANG', 'ITAGUAI'): 11800,             # ~39.3 days at 12.5 kn
+            ('GWANGYANG', 'TUBARAO'): 11700,             # Similar to Itaguai
+            ('GWANGYANG', 'SALDANHA BAY'): 9200,         # Via Indian Ocean
 
-            ('JUBAIL', 'KAMSAR ANCHORAGE'): 6500,
-            ('JUBAIL', 'PORT HEDLAND'): 5200,
-            ('JUBAIL', 'ITAGUAI'): 9800,
-            ('JUBAIL', 'TABONEO'): 4500,
-            ('JUBAIL', 'TUBARAO'): 9700,
+            # -----------------------------------------------------------------
+            # PORT TALBOT (Wales, UK) - Limited coverage in CSV
+            # Vessel: IRON CENTURY starts here
+            # Note: ITAGUAI and TUBARAO routes exist in CSV
+            # -----------------------------------------------------------------
+            ('PORT TALBOT', 'KAMSAR ANCHORAGE'): 2800,   # ~9.3 days at 12.5 kn
+            ('PORT TALBOT', 'PORT HEDLAND'): 11500,      # ~38.3 days at 12.5 kn
+            ('PORT TALBOT', 'DAMPIER'): 11600,           # Similar to Port Hedland
+            ('PORT TALBOT', 'VANCOUVER'): 7800,          # Via Atlantic/Panama
 
-            ('JINGTANG', 'KAMSAR ANCHORAGE'): 12500,
-            ('JINGTANG', 'PORT HEDLAND'): 4100,
-            ('JINGTANG', 'ITAGUAI'): 12000,
+            # -----------------------------------------------------------------
+            # JUBAIL (Saudi Arabia) - Limited coverage in CSV
+            # Vessel: TITAN LEGACY starts here
+            # Note: TUBARAO route exists in CSV
+            # -----------------------------------------------------------------
+            ('JUBAIL', 'KAMSAR ANCHORAGE'): 6500,        # ~21.7 days at 12.5 kn
+            ('JUBAIL', 'PORT HEDLAND'): 5200,            # ~17.3 days at 12.5 kn
+            ('JUBAIL', 'ITAGUAI'): 9800,                 # ~32.7 days at 12.5 kn
+            ('JUBAIL', 'TABONEO'): 4500,                 # ~15 days at 12.5 kn
+            ('JUBAIL', 'DAMPIER'): 5100,                 # Similar to Port Hedland
 
-            ('VIZAG', 'KAMSAR ANCHORAGE'): 7800,
-            ('VIZAG', 'PORT HEDLAND'): 4200,
-            ('VIZAG', 'ITAGUAI'): 10500,
-            ('VIZAG', 'TABONEO'): 2100,
+            # -----------------------------------------------------------------
+            # India ports - Various coverage gaps
+            # Vessels: ATLANTIC FORTUNE (Paradip), POLARIS SPIRIT (Kandla),
+            #          NAVIS PRIDE (Mundra), ZENITH GLORY (Vizag)
+            # -----------------------------------------------------------------
+            ('PARADIP', 'PORT HEDLAND'): 4100,           # ~13.7 days at 12.5 kn
+            ('PARADIP', 'KAMSAR ANCHORAGE'): 7600,       # ~25.3 days at 12.5 kn
+            ('PARADIP', 'ITAGUAI'): 10200,               # ~34 days at 12.5 kn
 
-            ('MUNDRA', 'KAMSAR ANCHORAGE'): 6200,
-            ('MUNDRA', 'PORT HEDLAND'): 4800,
-            ('MUNDRA', 'ITAGUAI'): 9500,
+            ('MUNDRA', 'KAMSAR ANCHORAGE'): 6200,        # ~20.7 days at 12.5 kn
+            ('MUNDRA', 'PORT HEDLAND'): 4800,            # ~16 days at 12.5 kn
+            ('MUNDRA', 'ITAGUAI'): 9500,                 # ~31.7 days at 12.5 kn
 
-            ('KANDLA', 'PORT HEDLAND'): 4900,
-            ('KANDLA', 'KAMSAR ANCHORAGE'): 6100,
+            ('KANDLA', 'PORT HEDLAND'): 4900,            # ~16.3 days at 12.5 kn
+            ('KANDLA', 'KAMSAR ANCHORAGE'): 6100,        # ~20.3 days at 12.5 kn
+            ('KANDLA', 'ITAGUAI'): 9400,                 # ~31.3 days at 12.5 kn
 
-            # New cargo routes
-            ('TABONEO', 'KRISHNAPATNAM'): 2400,
-            ('VANCOUVER', 'FANGCHENG'): 5500,
-            ('VANCOUVER', 'QINGDAO'): 5200,
-            ('KAMSAR ANCHORAGE', 'MANGALORE'): 7200,
-            ('TUBARAO', 'TELUK RUBIAH'): 10800,
-            ('TUBARAO', 'QINGDAO'): 11500,
+            # VIZAG routes - some exist in CSV, keeping only missing ones
+            ('VIZAG', 'PORT HEDLAND'): 4200,             # ~14 days at 12.5 kn
+            ('VIZAG', 'ITAGUAI'): 10500,                 # ~35 days at 12.5 kn
 
-            # China internal routes
-            ('FANGCHENG', 'KAMSAR ANCHORAGE'): 12000,
-            ('FANGCHENG', 'PORT HEDLAND'): 3700,
-            ('FANGCHENG', 'ITAGUAI'): 11600,
+            # -----------------------------------------------------------------
+            # XIAMEN (China) - Limited coverage in CSV
+            # Vessel: EVEREST OCEAN starts here
+            # -----------------------------------------------------------------
+            ('XIAMEN', 'KAMSAR ANCHORAGE'): 12200,       # ~40.7 days at 12.5 kn
 
-            ('XIAMEN', 'PORT HEDLAND'): 3600,
-            ('XIAMEN', 'KAMSAR ANCHORAGE'): 12200,
-            ('XIAMEN', 'ITAGUAI'): 11900,
+            # -----------------------------------------------------------------
+            # Cargo route estimates (load port -> discharge port)
+            # -----------------------------------------------------------------
+            ('KAMSAR ANCHORAGE', 'MANGALORE'): 7200,     # Guinea Alumina cargo
+            ('TUBARAO', 'TELUK RUBIAH'): 10800,          # Vale Malaysia cargo
 
-            ('CAOFEIDIAN', 'PORT HEDLAND'): 4200,
-            ('CAOFEIDIAN', 'KAMSAR ANCHORAGE'): 12600,
-            ('CAOFEIDIAN', 'ITAGUAI'): 12100,
+            # -----------------------------------------------------------------
+            # Additional market cargo routes (added based on warnings)
+            # -----------------------------------------------------------------
+            # TABONEO (Indonesia) routes for Adaro Coal cargo
+            ('QINGDAO', 'TABONEO'): 2400,                # ~8 days at 12.5 kn
+            ('GWANGYANG', 'TABONEO'): 2200,              # ~7.3 days at 12.5 kn
 
-            # Rotterdam routes
-            ('ROTTERDAM', 'PORT HEDLAND'): 11500,
-            ('ROTTERDAM', 'KAMSAR ANCHORAGE'): 3200,
-            ('ROTTERDAM', 'ITAGUAI'): 5500,
+            # PONTA DA MADEIRA (Brazil) routes for Vale cargo
+            ('MAP TA PHUT', 'PONTA DA MADEIRA'): 12600,  # ~42 days at 12.5 kn
+            ('GWANGYANG', 'PONTA DA MADEIRA'): 11900,    # ~39.7 days at 12.5 kn
+
+            # VANCOUVER (Canada) routes for Teck coal cargo
+            ('MAP TA PHUT', 'VANCOUVER'): 7200,          # ~24 days at 12.5 kn
+
+            # DAMPIER (Australia) routes for Rio Tinto cargo
+            ('GWANGYANG', 'DAMPIER'): 3500,              # ~11.7 days at 12.5 kn
+
+            # ROTTERDAM (Netherlands) market vessel position routes
+            ('ROTTERDAM', 'KAMSAR ANCHORAGE'): 3200,     # ~10.7 days at 12.5 kn
+            ('ROTTERDAM', 'PORT HEDLAND'): 11500,        # ~38.3 days at 12.5 kn
+
+            # -----------------------------------------------------------------
+            # Singapore hub - reference point
+            # -----------------------------------------------------------------
+            ('SINGAPORE', 'PORT HEDLAND'): 1678,         # Well-known route
         }
 
         # Pre-build normalized lookup for estimated distances
@@ -328,7 +407,27 @@ class PortDistanceManager:
         return [port_upper]
     
     def get_distance(self, port_from: str, port_to: str) -> Optional[float]:
-        """Get distance between two ports in nautical miles."""
+        """
+        Get distance between two ports in nautical miles.
+
+        Lookup priority:
+        1. CSV direct match
+        2. CSV reverse match
+        3. Estimated distances (logs warning)
+
+        Returns None if not found (logs error).
+        """
+        distance, source, matched_from, matched_to = self.get_distance_with_source(port_from, port_to)
+        return distance
+
+    def get_distance_with_source(self, port_from: str, port_to: str) -> Tuple[Optional[float], str, Optional[str], Optional[str]]:
+        """
+        Get distance with source information for auditing.
+
+        Returns:
+            Tuple of (distance, source, matched_from_port, matched_to_port)
+            source is one of: 'CSV', 'CSV_REVERSE', 'ESTIMATE', 'NOT_FOUND'
+        """
         from_options = self._normalize_port(port_from)
         to_options = self._normalize_port(port_to)
 
@@ -337,18 +436,139 @@ class PortDistanceManager:
             for t in to_options:
                 # Direct lookup
                 if (f, t) in self.distances:
-                    return self.distances[(f, t)]
+                    self._lookup_stats['csv'] += 1
+                    return self.distances[(f, t)], DistanceSource.CSV, f, t
                 # Reverse lookup
                 if (t, f) in self.distances:
-                    return self.distances[(t, f)]
+                    self._lookup_stats['csv_reverse'] += 1
+                    return self.distances[(t, f)], DistanceSource.CSV_REVERSE, t, f
 
         # Check pre-normalized estimated distances (O(1) lookup per combination)
         for f in from_options:
             for t in to_options:
                 if (f, t) in self._normalized_estimates:
-                    return self._normalized_estimates[(f, t)]
+                    self._lookup_stats['estimate'] += 1
+                    # Track which estimates are being used
+                    key = (port_from.upper(), port_to.upper())
+                    self._estimate_usage[key] = self._estimate_usage.get(key, 0) + 1
 
-        return None
+                    if self.verbose:
+                        distance_logger.info(
+                            f"Using ESTIMATED distance: {port_from} -> {port_to} = "
+                            f"{self._normalized_estimates[(f, t)]:,.0f} nm (not in CSV)"
+                        )
+                    return self._normalized_estimates[(f, t)], DistanceSource.ESTIMATE, f, t
+
+        # Not found
+        self._lookup_stats['not_found'] += 1
+        distance_logger.warning(f"Distance NOT FOUND: {port_from} -> {port_to}")
+        return None, DistanceSource.NOT_FOUND, None, None
+
+    def get_lookup_stats(self) -> Dict:
+        """Get statistics on distance lookup sources."""
+        total = sum(self._lookup_stats.values())
+        return {
+            'total_lookups': total,
+            'csv_lookups': self._lookup_stats['csv'],
+            'csv_reverse_lookups': self._lookup_stats['csv_reverse'],
+            'estimate_lookups': self._lookup_stats['estimate'],
+            'not_found': self._lookup_stats['not_found'],
+            'estimates_used': dict(self._estimate_usage),
+        }
+
+    def print_lookup_report(self):
+        """Print a summary report of distance lookup sources."""
+        stats = self.get_lookup_stats()
+        print("\n" + "=" * 60)
+        print("DISTANCE LOOKUP AUDIT REPORT")
+        print("=" * 60)
+        print(f"Total lookups:        {stats['total_lookups']}")
+        print(f"  CSV (direct):       {stats['csv_lookups']}")
+        print(f"  CSV (reverse):      {stats['csv_reverse_lookups']}")
+        print(f"  Estimates used:     {stats['estimate_lookups']}")
+        print(f"  Not found:          {stats['not_found']}")
+
+        if stats['estimates_used']:
+            print("\nEstimated distances used:")
+            for (from_p, to_p), count in sorted(stats['estimates_used'].items()):
+                dist = self.get_distance(from_p, to_p)
+                print(f"  {from_p} -> {to_p}: {dist:,.0f} nm (used {count}x)")
+
+        if stats['not_found'] > 0:
+            print("\n[WARNING] Some routes were not found!")
+        print("=" * 60)
+
+    def validate_port(self, port: str) -> Tuple[bool, List[str], bool]:
+        """
+        Validate a port name and check if it exists in CSV.
+
+        Returns:
+            Tuple of (is_valid, normalized_names, has_csv_routes)
+            - is_valid: True if port has an alias mapping
+            - normalized_names: List of normalized port name variants
+            - has_csv_routes: True if any routes exist in CSV for this port
+        """
+        normalized = self._normalize_port(port)
+        is_aliased = normalized != [port.upper().strip()]
+
+        # Check if any routes exist in CSV
+        has_csv_routes = False
+        for norm_port in normalized:
+            for (f, t) in self.distances.keys():
+                if f == norm_port or t == norm_port:
+                    has_csv_routes = True
+                    break
+            if has_csv_routes:
+                break
+
+        return is_aliased or has_csv_routes, normalized, has_csv_routes
+
+    def validate_all_ports(self, ports: List[str]) -> Dict[str, Dict]:
+        """
+        Validate a list of port names.
+
+        Returns dict with validation results for each port.
+        """
+        results = {}
+        for port in ports:
+            is_valid, normalized, has_csv = self.validate_port(port)
+            results[port] = {
+                'is_valid': is_valid,
+                'normalized': normalized,
+                'has_csv_routes': has_csv,
+                'status': 'OK' if has_csv else ('ALIAS_ONLY' if is_valid else 'UNKNOWN')
+            }
+        return results
+
+    def print_port_validation_report(self, ports: List[str]):
+        """Print a validation report for the given ports."""
+        results = self.validate_all_ports(ports)
+
+        print("\n" + "=" * 60)
+        print("PORT NAME VALIDATION REPORT")
+        print("=" * 60)
+
+        ok_ports = [p for p, r in results.items() if r['status'] == 'OK']
+        alias_ports = [p for p, r in results.items() if r['status'] == 'ALIAS_ONLY']
+        unknown_ports = [p for p, r in results.items() if r['status'] == 'UNKNOWN']
+
+        print(f"\nValidated ports: {len(ok_ports)}")
+        for port in ok_ports:
+            norm = results[port]['normalized']
+            print(f"  [OK] {port} -> {norm}")
+
+        if alias_ports:
+            print(f"\nAlias-only ports (may need estimates): {len(alias_ports)}")
+            for port in alias_ports:
+                norm = results[port]['normalized']
+                print(f"  [ALIAS] {port} -> {norm}")
+
+        if unknown_ports:
+            print(f"\n[WARNING] Unknown ports: {len(unknown_ports)}")
+            for port in unknown_ports:
+                print(f"  [?] {port}")
+
+        print("=" * 60)
 
 
 # =============================================================================
