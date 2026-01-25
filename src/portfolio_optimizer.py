@@ -16,12 +16,22 @@ import numpy as np
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass, field
 from itertools import combinations, permutations, product
-from .freight_calculator import (
-    FreightCalculator, PortDistanceManager, BunkerPrices,
-    Vessel, Cargo, VoyageResult, VoyageConfig,
-    create_cargill_vessels, create_cargill_cargoes,
-    create_market_vessels, create_market_cargoes, create_bunker_prices
-)
+
+# Handle both package imports and direct imports (from notebooks)
+try:
+    from .freight_calculator import (
+        FreightCalculator, PortDistanceManager, BunkerPrices,
+        Vessel, Cargo, VoyageResult, VoyageConfig,
+        create_cargill_vessels, create_cargill_cargoes,
+        create_market_vessels, create_market_cargoes, create_bunker_prices
+    )
+except ImportError:
+    from freight_calculator import (
+        FreightCalculator, PortDistanceManager, BunkerPrices,
+        Vessel, Cargo, VoyageResult, VoyageConfig,
+        create_cargill_vessels, create_cargill_cargoes,
+        create_market_vessels, create_market_cargoes, create_bunker_prices
+    )
 
 try:
     from scipy.optimize import linear_sum_assignment
@@ -34,7 +44,11 @@ try:
     from .ml import PortCongestionPredictor
     HAS_ML_MODEL = True
 except ImportError:
-    HAS_ML_MODEL = False
+    try:
+        from ml import PortCongestionPredictor
+        HAS_ML_MODEL = True
+    except ImportError:
+        HAS_ML_MODEL = False
 
 
 @dataclass

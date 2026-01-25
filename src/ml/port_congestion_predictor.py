@@ -25,8 +25,13 @@ try:
 except ImportError:
     HAS_LIGHTGBM = False
 
-from .feature_engineering import FeatureEngineer
-from .holiday_calendar import HolidayCalendar
+# Handle both package imports and direct imports (from notebooks)
+try:
+    from .feature_engineering import FeatureEngineer
+    from .holiday_calendar import HolidayCalendar
+except ImportError:
+    from feature_engineering import FeatureEngineer
+    from holiday_calendar import HolidayCalendar
 
 
 @dataclass
