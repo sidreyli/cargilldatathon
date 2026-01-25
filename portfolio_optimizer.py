@@ -15,7 +15,7 @@ import pandas as pd
 import numpy as np
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass, field
-from itertools import combinations, permutations
+from itertools import combinations, permutations, product
 from freight_calculator import (
     FreightCalculator, PortDistanceManager, BunkerPrices,
     Vessel, Cargo, VoyageResult, VoyageConfig,
@@ -132,7 +132,7 @@ class PortfolioOptimizer:
                         'can_make_laycan': result.can_make_laycan,
                         'arrival_date': result.arrival_date,
                         'laycan_end': result.laycan_end,
-                        'days_margin': (result.laycan_end - result.arrival_date).days,
+                        'days_margin': (result.laycan_end - result.arrival_date).total_seconds() / 86400,
                         'total_days': result.total_days,
                         'cargo_qty': result.cargo_quantity,
                         'net_freight': result.net_freight,
@@ -587,10 +587,19 @@ class FullPortfolioOptimizer:
         target_tce: float = 18000,
     ) -> FullPortfolioResult:
         """
-        Optimize the full portfolio with priorities:
+        Optimize the full portfolio using JOINT OPTIMIZATION.
 
-        1. MUST: Cover all Cargill cargoes (use Cargill vessels first, then market)
-        2. SHOULD: Maximize profit from remaining Cargill vessels on market cargoes
+        Key insight: A Cargill vessel might earn MORE on a market cargo than a
+        Cargill cargo. We could hire a market vessel cheaply for the Cargill cargo
+        and come out ahead.
+
+        Algorithm:
+        1. Generate all valid options
+        2. Enumerate all ways to cover Cargill cargoes (using Cargill OR market vessels)
+        3. For each coverage, greedily assign remaining Cargill vessels to market cargoes
+        4. Pick the combination with highest total profit
+
+        Hard constraint: Every Cargill cargo MUST be covered by exactly one vessel.
         """
 
         # Step 1: Calculate all options
@@ -600,128 +609,154 @@ class FullPortfolioOptimizer:
             use_eco_speed, target_tce
         )
 
-        # Step 2: Filter to valid options (can make laycan, positive economics)
+        # Step 2: Filter to valid options (can make laycan)
         valid_options = all_options[all_options['can_make_laycan']].copy()
 
-        # Step 3: Optimal assignment using enumeration for Cargill->Cargill
-        # (Greedy doesn't work - need to consider total portfolio profit)
-        assignments = []
+        # FFA market rate for hiring market vessels (5TC March 2026: $18,454/day)
+        FFA_MARKET_RATE = 18000
+
+        # Minimum daily profit threshold for market cargo assignments
+        MIN_DAILY_PROFIT = 5000
+
+        # Step 3: Build coverage options for each Cargill cargo
+        # For each cargo, list all vessels (Cargill + market) that can serve it
+        cargo_coverage = {}
+        for cargo in cargill_cargoes:
+            cargo_coverage[cargo.name] = []
+
+            # Get all valid options for this cargo
+            cargo_options = valid_options[valid_options['cargo'] == cargo.name]
+
+            for _, row in cargo_options.iterrows():
+                if row['vessel_type'] == 'cargill':
+                    # Cargill vessel: use net_profit directly (already includes hire cost)
+                    profit = row['net_profit']
+                else:
+                    # Market vessel: Cargill's profit = Net Freight - Voyage Costs - Hire
+                    # Where hire is at FFA market rate
+                    hire_cost = FFA_MARKET_RATE * row['total_days']
+                    voyage_costs = row['total_bunker_cost'] + row['port_costs'] + 15000  # misc
+                    profit = row['net_freight'] - voyage_costs - hire_cost
+
+                cargo_coverage[cargo.name].append({
+                    'vessel': row['vessel'],
+                    'vessel_type': row['vessel_type'],
+                    'profit': profit,
+                    'option': row['option'],
+                    'total_days': row['total_days'],
+                })
+
+        # Check if any Cargill cargo has no coverage
+        uncoverable_cargoes = [c for c in cargill_cargoes if len(cargo_coverage[c.name]) == 0]
+        if uncoverable_cargoes:
+            # Some cargoes cannot be covered - return best effort result
+            return self._build_fallback_result(
+                cargill_vessels, market_vessels, cargill_cargoes, market_cargoes,
+                valid_options, all_options, uncoverable_cargoes
+            )
+
+        # Step 4: Enumerate all coverage combinations using itertools.product
+        best_total_profit = float('-inf')
+        best_coverage_combo = None
+        best_market_assignments = []
+
+        coverage_lists = [cargo_coverage[c.name] for c in cargill_cargoes]
+
+        for coverage_combo in product(*coverage_lists):
+            # Check no vessel used twice for Cargill cargoes
+            vessels_used = [c['vessel'] for c in coverage_combo]
+            if len(vessels_used) != len(set(vessels_used)):
+                continue  # Skip invalid (same vessel for multiple cargoes)
+
+            # Calculate profit from Cargill cargo coverage
+            coverage_profit = sum(c['profit'] for c in coverage_combo)
+
+            # Step 5: Assign remaining Cargill vessels to market cargoes (greedy)
+            used_vessels = set(vessels_used)
+            remaining_cargill = [v for v in cargill_vessels if v.name not in used_vessels]
+
+            market_profit = 0
+            market_assignments = []
+            used_market_cargoes = set()
+
+            # For each remaining Cargill vessel, find best market cargo
+            for vessel in remaining_cargill:
+                best_market = None
+                best_market_profit = MIN_DAILY_PROFIT * 30  # Minimum ~$150K threshold
+
+                vessel_market_options = valid_options[
+                    (valid_options['vessel'] == vessel.name) &
+                    (valid_options['cargo_type'] == 'market') &
+                    (~valid_options['cargo'].isin(used_market_cargoes))
+                ]
+
+                for _, row in vessel_market_options.iterrows():
+                    # Check daily profit threshold
+                    if row['total_days'] > 0:
+                        daily_profit = row['net_profit'] / row['total_days']
+                        if daily_profit > MIN_DAILY_PROFIT and row['net_profit'] > best_market_profit:
+                            best_market = row
+                            best_market_profit = row['net_profit']
+
+                if best_market is not None:
+                    market_profit += best_market_profit
+                    market_assignments.append(best_market)
+                    used_market_cargoes.add(best_market['cargo'])
+
+            # Total profit for this combination
+            total_profit = coverage_profit + market_profit
+
+            if total_profit > best_total_profit:
+                best_total_profit = total_profit
+                best_coverage_combo = coverage_combo
+                best_market_assignments = market_assignments
+
+        # Step 6: Build result from best assignment
+        if best_coverage_combo is None:
+            # No valid combination found
+            return self._build_fallback_result(
+                cargill_vessels, market_vessels, cargill_cargoes, market_cargoes,
+                valid_options, all_options, []
+            )
+
+        # Build assignment lists
+        cargill_assignments = []
+        market_assignments = []
         assigned_vessels = set()
         assigned_cargoes = set()
 
-        # Priority 1: Find OPTIMAL Cargill vessels → Cargill cargoes assignment
-        cargill_to_cargill = valid_options[
-            (valid_options['vessel_type'] == 'cargill') &
-            (valid_options['cargo_type'] == 'cargill') &
-            (valid_options['net_profit'] > 0)
-        ].copy()
+        # Process Cargill cargo coverage
+        for i, coverage in enumerate(best_coverage_combo):
+            cargo_name = cargill_cargoes[i].name
+            vessel_name = coverage['vessel']
+            option = coverage['option']
 
-        # Build lookup for quick access
-        c2c_lookup = {}
-        for _, row in cargill_to_cargill.iterrows():
-            c2c_lookup[(row['vessel'], row['cargo'])] = row
+            if coverage['vessel_type'] == 'cargill':
+                cargill_assignments.append((vessel_name, cargo_name, option))
+            else:
+                market_assignments.append((vessel_name, cargo_name, option))
 
-        # Get unique vessels and cargoes that have valid options
-        c2c_vessels = cargill_to_cargill['vessel'].unique().tolist()
-        c2c_cargoes = cargill_to_cargill['cargo'].unique().tolist()
+            assigned_vessels.add(vessel_name)
+            assigned_cargoes.add(cargo_name)
 
-        # Enumerate all possible assignments to find global optimum
-        best_assignment = []
-        best_profit = float('-inf')
+        # Add market cargo assignments for remaining Cargill vessels
+        for row in best_market_assignments:
+            cargill_assignments.append((row['vessel'], row['cargo'], row['option']))
+            assigned_vessels.add(row['vessel'])
+            assigned_cargoes.add(row['cargo'])
 
-        # Try all possible assignment sizes (1 to min(vessels, cargoes))
-        for num_assign in range(1, min(len(c2c_vessels), len(c2c_cargoes)) + 1):
-            # Try all combinations of vessels
-            for vessel_combo in combinations(c2c_vessels, num_assign):
-                # Try all permutations of cargoes for these vessels
-                for cargo_perm in permutations(c2c_cargoes, num_assign):
-                    total_profit = 0
-                    valid = True
-                    assignment = []
-
-                    for v, c in zip(vessel_combo, cargo_perm):
-                        if (v, c) in c2c_lookup:
-                            row = c2c_lookup[(v, c)]
-                            total_profit += row['net_profit']
-                            assignment.append((v, c, row['option']))
-                        else:
-                            valid = False
-                            break
-
-                    if valid and total_profit > best_profit:
-                        best_profit = total_profit
-                        best_assignment = assignment
-
-        # Add best Cargill->Cargill assignments
-        for v, c, opt in best_assignment:
-            assignments.append((v, c, opt, 'cargill_to_cargill'))
-            assigned_vessels.add(v)
-            assigned_cargoes.add(c)
-
-        # Priority 2: Market vessels → Unassigned Cargill cargoes (MUST cover!)
-        # Even if unprofitable, we must fulfill committed cargoes
-        unassigned_cargill_cargoes = set(c.name for c in cargill_cargoes) - assigned_cargoes
-
-        if unassigned_cargill_cargoes:
-            # First try profitable options (recommended_hire_rate > 0)
-            market_to_cargill = valid_options[
-                (valid_options['vessel_type'] == 'market') &
-                (valid_options['cargo_type'] == 'cargill') &
-                (valid_options['cargo'].isin(unassigned_cargill_cargoes))
-            ].copy()
-
-            # Sort by recommended hire rate descending (best positioned vessels first)
-            # Vessels with negative hire rate are still valid but less desirable
-            market_to_cargill = market_to_cargill.sort_values(
-                'recommended_hire_rate', ascending=False
-            )
-
-            for _, row in market_to_cargill.iterrows():
-                if row['vessel'] not in assigned_vessels and row['cargo'] not in assigned_cargoes:
-                    assignments.append((row['vessel'], row['cargo'], row['option'], 'market_to_cargill'))
-                    assigned_vessels.add(row['vessel'])
-                    assigned_cargoes.add(row['cargo'])
-
-        # Priority 3: Remaining Cargill vessels → Market cargoes
-        # Only if the voyage is meaningfully profitable (daily profit > $5000)
-        MIN_DAILY_PROFIT = 5000
-        unassigned_cargill_vessels = set(v.name for v in cargill_vessels) - assigned_vessels
-
-        if unassigned_cargill_vessels:
-            cargill_to_market = valid_options[
-                (valid_options['vessel_type'] == 'cargill') &
-                (valid_options['cargo_type'] == 'market') &
-                (valid_options['vessel'].isin(unassigned_cargill_vessels))
-            ].copy()
-
-            # Calculate daily profit and filter (avoid division by zero)
-            cargill_to_market = cargill_to_market[cargill_to_market['total_days'] > 0].copy()
-            if len(cargill_to_market) > 0:
-                cargill_to_market['daily_profit'] = cargill_to_market['net_profit'] / cargill_to_market['total_days']
-                cargill_to_market = cargill_to_market[
-                    cargill_to_market['daily_profit'] > MIN_DAILY_PROFIT
-                ].sort_values('net_profit', ascending=False)
-
-            for _, row in cargill_to_market.iterrows():
-                if row['vessel'] not in assigned_vessels and row['cargo'] not in assigned_cargoes:
-                    assignments.append((row['vessel'], row['cargo'], row['option'], 'cargill_to_market'))
-                    assigned_vessels.add(row['vessel'])
-                    assigned_cargoes.add(row['cargo'])
-
-        # Build result
-        cargill_assignments = [(v, c, opt) for v, c, opt, t in assignments if t in ['cargill_to_cargill', 'cargill_to_market']]
-        market_assignments = [(v, c, opt) for v, c, opt, t in assignments if t == 'market_to_cargill']
-
-        total_profit = sum(opt.net_profit for _, _, opt, _ in assignments if opt.net_profit)
-        total_tce = sum(opt.tce for _, _, opt, _ in assignments if opt.tce)
-        avg_tce = total_tce / len(assignments) if assignments else 0
+        # Calculate totals
+        total_profit = best_total_profit
+        total_tce = sum(opt.tce for _, _, opt in cargill_assignments if opt and opt.tce)
+        total_tce += sum(opt.tce for _, _, opt in market_assignments if opt and opt.tce)
+        n_assignments = len(cargill_assignments) + len(market_assignments)
+        avg_tce = total_tce / n_assignments if n_assignments > 0 else 0
 
         # Final unassigned lists
         final_unassigned_vessels = [v.name for v in cargill_vessels if v.name not in assigned_vessels]
         final_unassigned_cargoes = [c.name for c in cargill_cargoes if c.name not in assigned_cargoes]
 
-        # Market recommendations - find best options
-        # For market vessels on Cargill cargoes: highest hire rate we'd pay per cargo
+        # Market recommendations - find best options for reference
         hire_offers = {}
         market_on_cargill = valid_options[
             (valid_options['vessel_type'] == 'market') &
@@ -729,13 +764,11 @@ class FullPortfolioOptimizer:
         ]
         for _, row in market_on_cargill.iterrows():
             if row['recommended_hire_rate'] > 0:
-                # Key by cargo (which Cargill cargo needs a market vessel)
                 cargo = row['cargo']
                 vessel = row['vessel']
                 key = f"{vessel} for {cargo}"
                 hire_offers[key] = row['recommended_hire_rate']
 
-        # For market cargoes: lowest min freight rate from CARGILL vessels only
         freight_bids = {}
         cargill_on_market = valid_options[
             (valid_options['vessel_type'] == 'cargill') &
@@ -757,6 +790,60 @@ class FullPortfolioOptimizer:
             avg_tce=avg_tce,
             market_vessel_hire_offers=hire_offers,
             market_cargo_freight_bids=freight_bids,
+            all_options=all_options,
+        )
+
+    def _build_fallback_result(
+        self,
+        cargill_vessels: List[Vessel],
+        market_vessels: List[Vessel],
+        cargill_cargoes: List[Cargo],
+        market_cargoes: List[Cargo],
+        valid_options: pd.DataFrame,
+        all_options: pd.DataFrame,
+        uncoverable_cargoes: List[Cargo],
+    ) -> FullPortfolioResult:
+        """Build a fallback result when full optimization fails."""
+
+        # Try greedy assignment for whatever we can cover
+        assignments = []
+        assigned_vessels = set()
+        assigned_cargoes = set()
+
+        # Greedy: best profit assignment for each cargo
+        for cargo in cargill_cargoes:
+            if cargo.name in [c.name for c in uncoverable_cargoes]:
+                continue
+
+            cargo_options = valid_options[
+                (valid_options['cargo'] == cargo.name) &
+                (~valid_options['vessel'].isin(assigned_vessels))
+            ].sort_values('net_profit', ascending=False)
+
+            if len(cargo_options) > 0:
+                best = cargo_options.iloc[0]
+                assign_type = 'cargill_to_cargill' if best['vessel_type'] == 'cargill' else 'market_to_cargill'
+                assignments.append((best['vessel'], best['cargo'], best['option'], assign_type))
+                assigned_vessels.add(best['vessel'])
+                assigned_cargoes.add(best['cargo'])
+
+        cargill_assignments = [(v, c, opt) for v, c, opt, t in assignments if t == 'cargill_to_cargill']
+        market_assignments = [(v, c, opt) for v, c, opt, t in assignments if t == 'market_to_cargill']
+
+        total_profit = sum(opt.net_profit for _, _, opt, _ in assignments if opt and opt.net_profit)
+        total_tce = sum(opt.tce for _, _, opt, _ in assignments if opt and opt.tce)
+        avg_tce = total_tce / len(assignments) if assignments else 0
+
+        return FullPortfolioResult(
+            cargill_vessel_assignments=cargill_assignments,
+            market_vessel_assignments=market_assignments,
+            unassigned_cargill_vessels=[v.name for v in cargill_vessels if v.name not in assigned_vessels],
+            unassigned_cargill_cargoes=[c.name for c in cargill_cargoes if c.name not in assigned_cargoes],
+            total_profit=total_profit,
+            total_tce=total_tce,
+            avg_tce=avg_tce,
+            market_vessel_hire_offers={},
+            market_cargo_freight_bids={},
             all_options=all_options,
         )
 
@@ -1009,7 +1096,7 @@ def print_optimization_report(
     
     for vessel, cargo, result in portfolio.assignments:
         if result:
-            print(f"\n{vessel} → {cargo}")
+            print(f"\n{vessel} -> {cargo}")
             print(f"  [DATE] Arrives: {result.arrival_date.strftime('%d %b %Y')} (Laycan ends: {result.laycan_end.strftime('%d %b %Y')})")
             print(f"  [TIME]  Duration: {result.total_days:.1f} days")
             print(f"  [CARGO] Cargo: {result.cargo_quantity:,} MT")
@@ -1028,12 +1115,12 @@ def print_optimization_report(
     if portfolio.unassigned_vessels:
         print("\n[!]  UNASSIGNED VESSELS (Available for market cargoes):")
         for v in portfolio.unassigned_vessels:
-            print(f"  • {v}")
+            print(f"  * {v}")
     
     if portfolio.unassigned_cargoes:
         print("\n[!]  UNASSIGNED CARGOES (Need market vessels):")
         for c in portfolio.unassigned_cargoes:
-            print(f"  • {c}")
+            print(f"  * {c}")
     
     # TCE Matrix
     print("\n\n[DATA] TCE COMPARISON MATRIX (USD/day)")
@@ -1267,8 +1354,8 @@ if __name__ == "__main__":
     print("""
 The optimization reveals a key challenge:
 
-• Only 2 Cargill vessels (ANN BELL, OCEAN HORIZON) can make ANY of the laycans
-• But there are 3 committed Cargill cargoes
+* Only 2 Cargill vessels (ANN BELL, OCEAN HORIZON) can make ANY of the laycans
+* But there are 3 committed Cargill cargoes
 
 This means you MUST either:
 1. Use a MARKET VESSEL to carry one of the committed cargoes
@@ -1276,8 +1363,8 @@ This means you MUST either:
 
 RECOMMENDATION:
 For the BHP Iron Ore cargo (Australia-China, laycan March 7-11):
-• This is the tightest laycan - only ANN BELL and OCEAN HORIZON can make it
-• But assigning them to BHP gives lower profit than other routes
-• Consider hiring PACIFIC VANGUARD (market vessel at Caofeidian, ETD Feb 26)
+* This is the tightest laycan - only ANN BELL and OCEAN HORIZON can make it
+* But assigning them to BHP gives lower profit than other routes
+* Consider hiring PACIFIC VANGUARD (market vessel at Caofeidian, ETD Feb 26)
   to carry the BHP cargo
     """)
