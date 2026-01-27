@@ -659,6 +659,70 @@ class FullPortfolioOptimizer:
                 error=str(e),
             )
 
+    def _exhaustive_market_assignments(
+        self,
+        remaining_vessels: List[Vessel],
+        vessel_market_lookup: Dict[str, Dict[str, object]],
+    ) -> Tuple[float, list]:
+        """
+        Find the profit-maximizing assignment of remaining Cargill vessels
+        to market cargoes by exhaustively searching all valid permutations.
+
+        With at most 4 vessels and 8 market cargoes, the search space is small
+        (~3,400 permutations worst case), so brute force is fast and exact.
+
+        Args:
+            remaining_vessels: Cargill vessels not assigned to committed cargoes
+            vessel_market_lookup: Pre-built dict {vessel_name: {cargo_name: row}}
+                where each row meets the minimum daily profit threshold
+
+        Returns:
+            (total_profit, list_of_assignment_rows)
+        """
+        if not remaining_vessels:
+            return 0, []
+
+        vessel_names = [v.name for v in remaining_vessels]
+
+        # Collect all market cargoes reachable by any remaining vessel
+        all_market_cargoes = list(set(
+            cargo
+            for vname in vessel_names
+            for cargo in vessel_market_lookup.get(vname, {}).keys()
+        ))
+
+        n_vessels = len(vessel_names)
+        n_cargoes = len(all_market_cargoes)
+
+        best_profit = 0
+        best_assignments = []
+
+        # Try all assignment sizes: 0 vessels assigned, 1, ..., min(N, M)
+        for k in range(min(n_vessels, n_cargoes) + 1):
+            for vessel_idx in combinations(range(n_vessels), k):
+                for cargo_idx in permutations(range(n_cargoes), k):
+                    total_profit = 0
+                    assignments = []
+                    valid = True
+
+                    for vi, ci in zip(vessel_idx, cargo_idx):
+                        vname = vessel_names[vi]
+                        cname = all_market_cargoes[ci]
+                        lookup = vessel_market_lookup.get(vname, {})
+
+                        if cname in lookup:
+                            total_profit += lookup[cname]['net_profit']
+                            assignments.append(lookup[cname])
+                        else:
+                            valid = False
+                            break
+
+                    if valid and total_profit > best_profit:
+                        best_profit = total_profit
+                        best_assignments = list(assignments)
+
+        return best_profit, best_assignments
+
     def optimize_full_portfolio(
         self,
         cargill_vessels: List[Vessel],
@@ -679,7 +743,7 @@ class FullPortfolioOptimizer:
         Algorithm:
         1. Generate all valid options
         2. Enumerate all ways to cover Cargill cargoes (using Cargill OR market vessels)
-        3. For each coverage, greedily assign remaining Cargill vessels to market cargoes
+        3. For each coverage, exhaustively assign remaining Cargill vessels to market cargoes
         4. Pick the combination with highest total profit
 
         Hard constraint: Every Cargill cargo MUST be covered by exactly one vessel.
@@ -752,6 +816,20 @@ class FullPortfolioOptimizer:
 
         coverage_lists = [cargo_coverage[c.name] for c in cargill_cargoes]
 
+        # Precompute valid market cargo options for each Cargill vessel
+        vessel_market_lookup = {}
+        for vessel in cargill_vessels:
+            vessel_market_lookup[vessel.name] = {}
+            vessel_opts = valid_options[
+                (valid_options['vessel'] == vessel.name) &
+                (valid_options['cargo_type'] == 'market')
+            ]
+            for _, row in vessel_opts.iterrows():
+                if row['total_days'] > 0:
+                    daily_profit = row['net_profit'] / row['total_days']
+                    if daily_profit > MIN_DAILY_PROFIT and row['net_profit'] > MIN_DAILY_PROFIT * 30:
+                        vessel_market_lookup[vessel.name][row['cargo']] = row
+
         for coverage_combo in product(*coverage_lists):
             # Check no vessel used twice for Cargill cargoes
             vessels_used = [c['vessel'] for c in coverage_combo]
@@ -761,37 +839,13 @@ class FullPortfolioOptimizer:
             # Calculate profit from Cargill cargo coverage
             coverage_profit = sum(c['profit'] for c in coverage_combo)
 
-            # Step 5: Assign remaining Cargill vessels to market cargoes (greedy)
+            # Step 5: Exhaustively assign remaining Cargill vessels to market cargoes
             used_vessels = set(vessels_used)
             remaining_cargill = [v for v in cargill_vessels if v.name not in used_vessels]
 
-            market_profit = 0
-            market_assignments = []
-            used_market_cargoes = set()
-
-            # For each remaining Cargill vessel, find best market cargo
-            for vessel in remaining_cargill:
-                best_market = None
-                best_market_profit = MIN_DAILY_PROFIT * 30  # Minimum ~$150K threshold
-
-                vessel_market_options = valid_options[
-                    (valid_options['vessel'] == vessel.name) &
-                    (valid_options['cargo_type'] == 'market') &
-                    (~valid_options['cargo'].isin(used_market_cargoes))
-                ]
-
-                for _, row in vessel_market_options.iterrows():
-                    # Check daily profit threshold
-                    if row['total_days'] > 0:
-                        daily_profit = row['net_profit'] / row['total_days']
-                        if daily_profit > MIN_DAILY_PROFIT and row['net_profit'] > best_market_profit:
-                            best_market = row
-                            best_market_profit = row['net_profit']
-
-                if best_market is not None:
-                    market_profit += best_market_profit
-                    market_assignments.append(best_market)
-                    used_market_cargoes.add(best_market['cargo'])
+            market_profit, market_assignments = self._exhaustive_market_assignments(
+                remaining_cargill, vessel_market_lookup
+            )
 
             # Total profit for this combination
             total_profit = coverage_profit + market_profit

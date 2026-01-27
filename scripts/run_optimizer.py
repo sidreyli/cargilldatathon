@@ -72,6 +72,7 @@ if __name__ == "__main__":
         cargill_cargoes=cargill_cargoes,
         market_cargoes=market_cargoes,
         target_tce=TARGET_TCE,
+        dual_speed_mode=True,
     )
 
     print_full_portfolio_report(full_result)
