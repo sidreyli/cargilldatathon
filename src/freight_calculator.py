@@ -45,9 +45,9 @@ class Vessel:
     fuel_ballast_eco_vlsfo: float
     fuel_ballast_eco_mgo: float
     
-    # Port consumption
-    port_idle_vlsfo: float
-    port_working_vlsfo: float
+    # Port consumption (vessels consume MGO at port, not VLSFO)
+    port_idle_mgo: float
+    port_working_mgo: float
     
     # Current position
     current_port: str
@@ -57,7 +57,6 @@ class Vessel:
     
     # Ownership flag (with default)
     is_cargill: bool = True
-    port_mgo: float = 0.0             # Usually included in at-sea consumption
 
 
 @dataclass
@@ -739,20 +738,18 @@ class FreightCalculator:
         vlsfo_laden = laden_days * fuel_laden_vlsfo
         mgo_laden = laden_days * fuel_laden_mgo
         
-        # In port - working
+        # In port - working (vessels consume MGO at port)
         working_days = load_days + discharge_days - (cargo.load_turn_time + cargo.discharge_turn_time) / 24
-        vlsfo_working = working_days * vessel.port_working_vlsfo
+        mgo_working = working_days * vessel.port_working_mgo
 
         # In port - idle (waiting + turn times)
         idle_days = waiting_days + (cargo.load_turn_time + cargo.discharge_turn_time) / 24
-        vlsfo_idle = idle_days * vessel.port_idle_vlsfo
+        mgo_idle = idle_days * vessel.port_idle_mgo
 
         # Total fuel
-        # NOTE: Port MGO consumption is set to 0 per datathon assumptions.
-        # MGO is typically only consumed at sea for auxiliary engines. If port MGO
-        # consumption is required, add: mgo_port = port_days * vessel.port_mgo
-        vlsfo_consumed = vlsfo_ballast + vlsfo_laden + vlsfo_working + vlsfo_idle
-        mgo_consumed = mgo_ballast + mgo_laden
+        # Port consumption uses MGO (not VLSFO) per Cargill operational requirements
+        vlsfo_consumed = vlsfo_ballast + vlsfo_laden
+        mgo_consumed = mgo_ballast + mgo_laden + mgo_working + mgo_idle
         
         # -----------------------------------------------------------------
         # 8. BUNKER COSTS
@@ -882,7 +879,7 @@ def create_cargill_vessels() -> List[Vessel]:
             fuel_ballast_vlsfo=55, fuel_ballast_mgo=2.0,
             fuel_laden_eco_vlsfo=42, fuel_laden_eco_mgo=2.0,
             fuel_ballast_eco_vlsfo=38, fuel_ballast_eco_mgo=2.0,
-            port_idle_vlsfo=2.0, port_working_vlsfo=3.0,
+            port_idle_mgo=2.0, port_working_mgo=3.0,
             current_port="QINGDAO",
             etd="25 Feb 2026",
             bunker_rob_vlsfo=401.3, bunker_rob_mgo=45.1,
@@ -898,7 +895,7 @@ def create_cargill_vessels() -> List[Vessel]:
             fuel_ballast_vlsfo=56.5, fuel_ballast_mgo=1.8,
             fuel_laden_eco_vlsfo=43, fuel_laden_eco_mgo=1.8,
             fuel_ballast_eco_vlsfo=39.5, fuel_ballast_eco_mgo=1.8,
-            port_idle_vlsfo=1.8, port_working_vlsfo=3.2,
+            port_idle_mgo=1.8, port_working_mgo=3.2,
             current_port="MAP TA PHUT",
             etd="1 Mar 2026",
             bunker_rob_vlsfo=265.8, bunker_rob_mgo=64.3,
@@ -914,7 +911,7 @@ def create_cargill_vessels() -> List[Vessel]:
             fuel_ballast_vlsfo=54, fuel_ballast_mgo=1.9,
             fuel_laden_eco_vlsfo=44, fuel_laden_eco_mgo=1.9,
             fuel_ballast_eco_vlsfo=40, fuel_ballast_eco_mgo=1.9,
-            port_idle_vlsfo=2.0, port_working_vlsfo=3.0,
+            port_idle_mgo=2.0, port_working_mgo=3.0,
             current_port="GWANGYANG",
             etd="10 Mar 2026",
             bunker_rob_vlsfo=601.9, bunker_rob_mgo=98.1,
@@ -930,7 +927,7 @@ def create_cargill_vessels() -> List[Vessel]:
             fuel_ballast_vlsfo=53, fuel_ballast_mgo=2.0,
             fuel_laden_eco_vlsfo=41, fuel_laden_eco_mgo=2.0,
             fuel_ballast_eco_vlsfo=37, fuel_ballast_eco_mgo=2.0,
-            port_idle_vlsfo=1.9, port_working_vlsfo=3.1,
+            port_idle_mgo=1.9, port_working_mgo=3.1,
             current_port="FANGCHENG",
             etd="8 Mar 2026",
             bunker_rob_vlsfo=793.3, bunker_rob_mgo=17.1,
@@ -953,7 +950,7 @@ def create_market_vessels() -> List[Vessel]:
             fuel_ballast_vlsfo=56, fuel_ballast_mgo=2.0,
             fuel_laden_eco_vlsfo=43, fuel_laden_eco_mgo=2.0,
             fuel_ballast_eco_vlsfo=39.5, fuel_ballast_eco_mgo=2.0,
-            port_idle_vlsfo=2.0, port_working_vlsfo=3.0,
+            port_idle_mgo=2.0, port_working_mgo=3.0,
             current_port="PARADIP", etd="2 Mar 2026",
             bunker_rob_vlsfo=512.4, bunker_rob_mgo=38.9,
             is_cargill=False
@@ -966,7 +963,7 @@ def create_market_vessels() -> List[Vessel]:
             fuel_ballast_vlsfo=54, fuel_ballast_mgo=1.9,
             fuel_laden_eco_vlsfo=42, fuel_laden_eco_mgo=1.9,
             fuel_ballast_eco_vlsfo=38, fuel_ballast_eco_mgo=1.9,
-            port_idle_vlsfo=1.9, port_working_vlsfo=3.0,
+            port_idle_mgo=1.9, port_working_mgo=3.0,
             current_port="CAOFEIDIAN", etd="26 Feb 2026",
             bunker_rob_vlsfo=420.3, bunker_rob_mgo=51.0,
             is_cargill=False
@@ -979,7 +976,7 @@ def create_market_vessels() -> List[Vessel]:
             fuel_ballast_vlsfo=53, fuel_ballast_mgo=2.0,
             fuel_laden_eco_vlsfo=40, fuel_laden_eco_mgo=2.0,
             fuel_ballast_eco_vlsfo=36.5, fuel_ballast_eco_mgo=2.0,
-            port_idle_vlsfo=2.0, port_working_vlsfo=3.1,
+            port_idle_mgo=2.0, port_working_mgo=3.1,
             current_port="ROTTERDAM", etd="5 Mar 2026",
             bunker_rob_vlsfo=601.7, bunker_rob_mgo=42.3,
             is_cargill=False
@@ -992,7 +989,7 @@ def create_market_vessels() -> List[Vessel]:
             fuel_ballast_vlsfo=56.5, fuel_ballast_mgo=1.8,
             fuel_laden_eco_vlsfo=43.5, fuel_laden_eco_mgo=1.8,
             fuel_ballast_eco_vlsfo=39, fuel_ballast_eco_mgo=1.8,
-            port_idle_vlsfo=1.8, port_working_vlsfo=3.0,
+            port_idle_mgo=1.8, port_working_mgo=3.0,
             current_port="XIAMEN", etd="3 Mar 2026",
             bunker_rob_vlsfo=478.2, bunker_rob_mgo=56.4,
             is_cargill=False
@@ -1005,7 +1002,7 @@ def create_market_vessels() -> List[Vessel]:
             fuel_ballast_vlsfo=57, fuel_ballast_mgo=1.9,
             fuel_laden_eco_vlsfo=44, fuel_laden_eco_mgo=1.9,
             fuel_ballast_eco_vlsfo=40, fuel_ballast_eco_mgo=1.9,
-            port_idle_vlsfo=2.0, port_working_vlsfo=3.1,
+            port_idle_mgo=2.0, port_working_mgo=3.1,
             current_port="KANDLA", etd="28 Feb 2026",
             bunker_rob_vlsfo=529.8, bunker_rob_mgo=47.1,
             is_cargill=False
@@ -1018,7 +1015,7 @@ def create_market_vessels() -> List[Vessel]:
             fuel_ballast_vlsfo=54, fuel_ballast_mgo=2.1,
             fuel_laden_eco_vlsfo=41, fuel_laden_eco_mgo=2.1,
             fuel_ballast_eco_vlsfo=37.5, fuel_ballast_eco_mgo=2.1,
-            port_idle_vlsfo=2.1, port_working_vlsfo=3.2,
+            port_idle_mgo=2.1, port_working_mgo=3.2,
             current_port="PORT TALBOT", etd="9 Mar 2026",
             bunker_rob_vlsfo=365.6, bunker_rob_mgo=60.7,
             is_cargill=False
@@ -1031,7 +1028,7 @@ def create_market_vessels() -> List[Vessel]:
             fuel_ballast_vlsfo=53, fuel_ballast_mgo=2.0,
             fuel_laden_eco_vlsfo=42, fuel_laden_eco_mgo=2.0,
             fuel_ballast_eco_vlsfo=38, fuel_ballast_eco_mgo=2.0,
-            port_idle_vlsfo=2.0, port_working_vlsfo=3.1,
+            port_idle_mgo=2.0, port_working_mgo=3.1,
             current_port="GWANGYANG", etd="6 Mar 2026",
             bunker_rob_vlsfo=547.1, bunker_rob_mgo=32.4,
             is_cargill=False
@@ -1044,7 +1041,7 @@ def create_market_vessels() -> List[Vessel]:
             fuel_ballast_vlsfo=56, fuel_ballast_mgo=1.8,
             fuel_laden_eco_vlsfo=44, fuel_laden_eco_mgo=1.8,
             fuel_ballast_eco_vlsfo=39, fuel_ballast_eco_mgo=1.8,
-            port_idle_vlsfo=1.8, port_working_vlsfo=3.0,
+            port_idle_mgo=1.8, port_working_mgo=3.0,
             current_port="MUNDRA", etd="27 Feb 2026",
             bunker_rob_vlsfo=493.8, bunker_rob_mgo=45.2,
             is_cargill=False
@@ -1057,7 +1054,7 @@ def create_market_vessels() -> List[Vessel]:
             fuel_ballast_vlsfo=53, fuel_ballast_mgo=2.0,
             fuel_laden_eco_vlsfo=41, fuel_laden_eco_mgo=2.0,
             fuel_ballast_eco_vlsfo=37.5, fuel_ballast_eco_mgo=2.0,
-            port_idle_vlsfo=2.0, port_working_vlsfo=3.1,
+            port_idle_mgo=2.0, port_working_mgo=3.1,
             current_port="JINGTANG", etd="4 Mar 2026",
             bunker_rob_vlsfo=422.7, bunker_rob_mgo=29.8,
             is_cargill=False
@@ -1070,7 +1067,7 @@ def create_market_vessels() -> List[Vessel]:
             fuel_ballast_vlsfo=56.5, fuel_ballast_mgo=1.9,
             fuel_laden_eco_vlsfo=43.5, fuel_laden_eco_mgo=1.9,
             fuel_ballast_eco_vlsfo=39, fuel_ballast_eco_mgo=1.9,
-            port_idle_vlsfo=1.9, port_working_vlsfo=3.1,
+            port_idle_mgo=1.9, port_working_mgo=3.1,
             current_port="VIZAG", etd="7 Mar 2026",
             bunker_rob_vlsfo=502.3, bunker_rob_mgo=44.6,
             is_cargill=False
@@ -1083,7 +1080,7 @@ def create_market_vessels() -> List[Vessel]:
             fuel_ballast_vlsfo=54, fuel_ballast_mgo=2.0,
             fuel_laden_eco_vlsfo=42, fuel_laden_eco_mgo=2.0,
             fuel_ballast_eco_vlsfo=38, fuel_ballast_eco_mgo=2.0,
-            port_idle_vlsfo=2.0, port_working_vlsfo=3.0,
+            port_idle_mgo=2.0, port_working_mgo=3.0,
             current_port="JUBAIL", etd="1 Mar 2026",
             bunker_rob_vlsfo=388.5, bunker_rob_mgo=53.1,
             is_cargill=False

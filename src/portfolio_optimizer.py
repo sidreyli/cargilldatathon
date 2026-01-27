@@ -130,6 +130,7 @@ class PortfolioOptimizer:
         extra_port_delay: float = 0,
         bunker_adjustment: float = 1.0,
         port_delays: Optional[Dict[str, float]] = None,
+        dual_speed_mode: bool = False,
     ) -> pd.DataFrame:
         """
         Calculate voyage economics for all vessel-cargo combinations.
@@ -137,66 +138,78 @@ class PortfolioOptimizer:
         Args:
             vessels: List of vessels
             cargoes: List of cargoes
-            use_eco_speed: Whether to use eco speed
+            use_eco_speed: Whether to use eco speed (ignored if dual_speed_mode=True)
             extra_port_delay: Base extra delay to add to all voyages
             bunker_adjustment: Bunker price multiplier
             port_delays: Optional dict mapping port names to delay days
                          e.g., {"Qingdao": 3.5, "Mundra": 2.0}
                          If provided, overrides extra_port_delay for matching ports
+            dual_speed_mode: If True, calculate BOTH eco and warranted speeds for each
+                             vessel-cargo pair. This doubles the solution space and allows
+                             the optimizer to choose between speed vs fuel consumption tradeoffs.
 
         Returns DataFrame with all results.
         """
         results = []
 
+        # Determine which speeds to calculate
+        if dual_speed_mode:
+            speed_options = [True, False]  # [eco, warranted]
+        else:
+            speed_options = [use_eco_speed]
+
         for vessel in vessels:
             for cargo in cargoes:
-                try:
-                    # Determine port-specific delay
-                    delay = extra_port_delay
-                    if port_delays:
-                        # Check for discharge port in port_delays dict
-                        port_name = cargo.discharge_port.upper()
-                        for key, value in port_delays.items():
-                            if key.upper() in port_name or port_name in key.upper():
-                                delay = value
-                                break
+                for eco_speed in speed_options:
+                    try:
+                        # Determine port-specific delay
+                        delay = extra_port_delay
+                        if port_delays:
+                            # Check for discharge port in port_delays dict
+                            port_name = cargo.discharge_port.upper()
+                            for key, value in port_delays.items():
+                                if key.upper() in port_name or port_name in key.upper():
+                                    delay = value
+                                    break
 
-                    result = self.calculator.calculate_voyage(
-                        vessel, cargo,
-                        use_eco_speed=use_eco_speed,
-                        extra_port_delay_days=delay,
-                        bunker_price_adjustment=bunker_adjustment,
-                    )
-                    
-                    results.append({
-                        'vessel': vessel.name,
-                        'cargo': cargo.name,
-                        'can_make_laycan': result.can_make_laycan,
-                        'arrival_date': result.arrival_date,
-                        'laycan_end': result.laycan_end,
-                        'days_margin': (result.laycan_end - result.arrival_date).total_seconds() / 86400,
-                        'total_days': result.total_days,
-                        'cargo_qty': result.cargo_quantity,
-                        'net_freight': result.net_freight,
-                        'total_bunker_cost': result.total_bunker_cost,
-                        'hire_cost': result.hire_cost,
-                        'port_costs': result.port_costs,
-                        'net_profit': result.net_profit,
-                        'tce': result.tce,
-                        'vlsfo_consumed': result.vlsfo_consumed,
-                        'result': result,
-                    })
-                except Exception as e:
-                    results.append({
-                        'vessel': vessel.name,
-                        'cargo': cargo.name,
-                        'can_make_laycan': False,
-                        'error': str(e),
-                        'tce': np.nan,
-                        'net_profit': np.nan,
-                        'result': None,
-                    })
-        
+                        result = self.calculator.calculate_voyage(
+                            vessel, cargo,
+                            use_eco_speed=eco_speed,
+                            extra_port_delay_days=delay,
+                            bunker_price_adjustment=bunker_adjustment,
+                        )
+
+                        results.append({
+                            'vessel': vessel.name,
+                            'cargo': cargo.name,
+                            'speed_type': 'eco' if eco_speed else 'warranted',
+                            'can_make_laycan': result.can_make_laycan,
+                            'arrival_date': result.arrival_date,
+                            'laycan_end': result.laycan_end,
+                            'days_margin': (result.laycan_end - result.arrival_date).total_seconds() / 86400,
+                            'total_days': result.total_days,
+                            'cargo_qty': result.cargo_quantity,
+                            'net_freight': result.net_freight,
+                            'total_bunker_cost': result.total_bunker_cost,
+                            'hire_cost': result.hire_cost,
+                            'port_costs': result.port_costs,
+                            'net_profit': result.net_profit,
+                            'tce': result.tce,
+                            'vlsfo_consumed': result.vlsfo_consumed,
+                            'result': result,
+                        })
+                    except Exception as e:
+                        results.append({
+                            'vessel': vessel.name,
+                            'cargo': cargo.name,
+                            'speed_type': 'eco' if eco_speed else 'warranted',
+                            'can_make_laycan': False,
+                            'error': str(e),
+                            'tce': np.nan,
+                            'net_profit': np.nan,
+                            'result': None,
+                        })
+
         return pd.DataFrame(results)
     
     def optimize_assignments(
@@ -209,6 +222,7 @@ class PortfolioOptimizer:
         maximize: str = 'profit',  # 'profit' or 'tce'
         include_negative_profit: bool = False,  # Whether to assign voyages with negative profit
         port_delays: Optional[Dict[str, float]] = None,
+        dual_speed_mode: bool = False,
     ) -> PortfolioResult:
         """
         Find optimal vessel-cargo assignments.
@@ -219,11 +233,14 @@ class PortfolioOptimizer:
         Args:
             vessels: List of available vessels
             cargoes: List of cargoes to assign
-            use_eco_speed: Whether to use economical speed
+            use_eco_speed: Whether to use economical speed (ignored if dual_speed_mode=True)
             extra_port_delay: Additional port delay days for scenario analysis
             bunker_adjustment: Bunker price multiplier for scenario analysis
             maximize: Optimization target ('profit' or 'tce')
             include_negative_profit: Whether to include negative profit assignments
+            dual_speed_mode: If True, calculate BOTH eco and warranted speeds. This allows
+                             the optimizer to select warranted speed when it enables meeting
+                             laycans or provides better profit despite higher fuel costs.
 
         Returns:
             PortfolioResult with optimal assignments
@@ -231,7 +248,7 @@ class PortfolioOptimizer:
         # Calculate all voyage options
         df = self.calculate_all_voyages(
             vessels, cargoes, use_eco_speed, extra_port_delay, bunker_adjustment,
-            port_delays=port_delays
+            port_delays=port_delays, dual_speed_mode=dual_speed_mode
         )
 
         # Filter to only valid voyages (can make laycan)
@@ -250,6 +267,13 @@ class PortfolioOptimizer:
                 total_tce=0,
                 avg_tce=0,
             )
+
+        # In dual-speed mode, keep only the BEST speed option for each vessel-cargo pair
+        # This simplifies optimization while still exploring warranted speed options
+        if dual_speed_mode:
+            # Group by vessel-cargo and keep the row with highest value
+            value_key = 'net_profit' if maximize == 'profit' else 'tce'
+            valid_df = valid_df.loc[valid_df.groupby(['vessel', 'cargo'])[value_key].idxmax()]
 
         # Get unique vessels and cargoes that have valid options
         valid_vessels = valid_df['vessel'].unique().tolist()
@@ -446,6 +470,7 @@ class FullPortfolioOptimizer:
         market_cargoes: List[Cargo],
         use_eco_speed: bool = True,
         target_tce: float = 18000,  # Target profit/day for calculations
+        dual_speed_mode: bool = False,
     ) -> pd.DataFrame:
         """
         Calculate voyage economics for VALID vessel-cargo combinations only.
@@ -460,42 +485,55 @@ class FullPortfolioOptimizer:
         """
         results = []
 
+        # Determine which speeds to calculate
+        if dual_speed_mode:
+            speed_options = [True, False]  # [eco, warranted]
+        else:
+            speed_options = [use_eco_speed]
+
         # 1. Cargill vessels → Cargill cargoes
         for vessel in cargill_vessels:
             for cargo in cargill_cargoes:
-                option = self._calculate_option(
-                    vessel, cargo, "cargill", "cargill",
-                    use_eco_speed, target_tce
-                )
-                results.append(self._option_to_dict(option))
+                for eco_speed in speed_options:
+                    option = self._calculate_option(
+                        vessel, cargo, "cargill", "cargill",
+                        eco_speed, target_tce
+                    )
+                    speed_type = 'eco' if eco_speed else 'warranted'
+                    results.append(self._option_to_dict(option, speed_type))
 
         # 2. Cargill vessels → Market cargoes
         for vessel in cargill_vessels:
             for cargo in market_cargoes:
-                option = self._calculate_option(
-                    vessel, cargo, "cargill", "market",
-                    use_eco_speed, target_tce
-                )
-                results.append(self._option_to_dict(option))
+                for eco_speed in speed_options:
+                    option = self._calculate_option(
+                        vessel, cargo, "cargill", "market",
+                        eco_speed, target_tce
+                    )
+                    speed_type = 'eco' if eco_speed else 'warranted'
+                    results.append(self._option_to_dict(option, speed_type))
 
         # 3. Market vessels → Cargill cargoes ONLY
         for vessel in market_vessels:
             for cargo in cargill_cargoes:
-                option = self._calculate_option(
-                    vessel, cargo, "market", "cargill",
-                    use_eco_speed, target_tce
-                )
-                results.append(self._option_to_dict(option))
+                for eco_speed in speed_options:
+                    option = self._calculate_option(
+                        vessel, cargo, "market", "cargill",
+                        eco_speed, target_tce
+                    )
+                    speed_type = 'eco' if eco_speed else 'warranted'
+                    results.append(self._option_to_dict(option, speed_type))
 
         return pd.DataFrame(results)
 
-    def _option_to_dict(self, option: VoyageOption) -> dict:
+    def _option_to_dict(self, option: VoyageOption, speed_type: str = 'eco') -> dict:
         """Convert VoyageOption to dictionary for DataFrame."""
         return {
             'vessel': option.vessel.name,
             'cargo': option.cargo.name,
             'vessel_type': option.vessel_type,
             'cargo_type': option.cargo_type,
+            'speed_type': speed_type,
             'can_make_laycan': option.can_make_laycan,
             'tce': option.tce,
             'net_profit': option.net_profit,
@@ -629,6 +667,7 @@ class FullPortfolioOptimizer:
         market_cargoes: List[Cargo],
         use_eco_speed: bool = True,
         target_tce: float = 18000,
+        dual_speed_mode: bool = False,
     ) -> FullPortfolioResult:
         """
         Optimize the full portfolio using JOINT OPTIMIZATION.
@@ -650,11 +689,18 @@ class FullPortfolioOptimizer:
         all_options = self.calculate_all_options(
             cargill_vessels, market_vessels,
             cargill_cargoes, market_cargoes,
-            use_eco_speed, target_tce
+            use_eco_speed, target_tce, dual_speed_mode
         )
 
         # Step 2: Filter to valid options (can make laycan)
         valid_options = all_options[all_options['can_make_laycan']].copy()
+
+        # In dual-speed mode, keep only the BEST speed option for each vessel-cargo pair
+        if dual_speed_mode:
+            # Group by vessel-cargo and keep the row with highest profit
+            valid_options = valid_options.loc[
+                valid_options.groupby(['vessel', 'cargo'])['net_profit'].idxmax()
+            ]
 
         # FFA market rate for hiring market vessels (5TC March 2026: $18,454/day)
         FFA_MARKET_RATE = 18000
