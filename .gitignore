@@ -27,6 +27,9 @@ models/*.png
 .claude/
 CLAUDE.md
 
+# Internal verification docs (not for submission)
+docs/math_verification.md
+
 # OS
 .DS_Store
 Thumbs.db

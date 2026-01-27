@@ -12,7 +12,9 @@
       "Bash(git add:*)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nImplement joint optimization for portfolio optimizer\n\nReplace 3-step greedy approach with joint optimization that considers\nall valid assignments simultaneously:\n- Cargill vessels -> Cargill cargoes\n- Cargill vessels -> Market cargoes  \n- Market vessels -> Cargill cargoes \\(at FFA rate $18,000/day\\)\n\nKey improvement: Total portfolio profit increases from $2.28M to $5.18M\n\\(+127%\\) by allowing Cargill vessels to take lucrative market cargoes\nwhile hiring market vessels for committed Cargill cargoes.\n\nAlso fixes Unicode encoding issues for Windows console output.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(where:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(wc:*)",
+      "Bash(git rm:*)"
     ]
   }
 }
