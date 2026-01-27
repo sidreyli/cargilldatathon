@@ -196,6 +196,10 @@ class PortfolioOptimizer:
                             'net_profit': result.net_profit,
                             'tce': result.tce,
                             'vlsfo_consumed': result.vlsfo_consumed,
+                            'bunker_port': result.selected_bunker_port or 'No bunker',
+                            'bunker_savings': result.bunker_port_savings,
+                            'bunker_vlsfo_qty': result.bunker_fuel_vlsfo_qty,
+                            'bunker_mgo_qty': result.bunker_fuel_mgo_qty,
                             'result': result,
                         })
                     except Exception as e:
@@ -544,6 +548,10 @@ class FullPortfolioOptimizer:
             'net_freight': option.result.net_freight if option.result else 0,
             'total_bunker_cost': option.result.total_bunker_cost if option.result else 0,
             'port_costs': option.result.port_costs if option.result else 0,
+            'bunker_port': option.result.selected_bunker_port if option.result else 'No bunker',
+            'bunker_savings': option.result.bunker_port_savings if option.result else 0,
+            'bunker_vlsfo_qty': option.result.bunker_fuel_vlsfo_qty if option.result else 0,
+            'bunker_mgo_qty': option.result.bunker_fuel_mgo_qty if option.result else 0,
             'error': option.error,
             'result': option.result,
             'option': option,
@@ -1011,6 +1019,13 @@ def print_full_portfolio_report(result: FullPortfolioResult):
             print(f"  Arrives: {option.result.arrival_date.strftime('%d %b %Y')}")
             print(f"  Duration: {option.result.total_days:.1f} days")
             print(f"  Cargo: {option.result.cargo_quantity:,} MT")
+            if option.result.selected_bunker_port:
+                print(f"  Bunker Port: {option.result.selected_bunker_port}")
+                print(f"  Bunker Fuel: {option.result.bunker_fuel_vlsfo_qty:.0f} MT VLSFO, "
+                      f"{option.result.bunker_fuel_mgo_qty:.0f} MT MGO")
+                if option.result.bunker_port_savings > 0:
+                    print(f"  Bunker Savings: ${option.result.bunker_port_savings:,.0f} "
+                          f"(vs load port pricing)")
             print(f"  TCE: ${option.tce:,.0f}/day")
             print(f"  Net Profit: ${option.net_profit:,.0f}")
             if option.cargo_type == "market":
@@ -1028,6 +1043,12 @@ def print_full_portfolio_report(result: FullPortfolioResult):
                 print(f"  Arrives: {option.result.arrival_date.strftime('%d %b %Y')}")
                 print(f"  Duration: {option.result.total_days:.1f} days")
                 print(f"  Cargo: {option.result.cargo_quantity:,} MT")
+                if option.result.selected_bunker_port:
+                    print(f"  Bunker Port: {option.result.selected_bunker_port}")
+                    print(f"  Bunker Fuel: {option.result.bunker_fuel_vlsfo_qty:.0f} MT VLSFO, "
+                          f"{option.result.bunker_fuel_mgo_qty:.0f} MT MGO")
+                    if option.result.bunker_port_savings > 0:
+                        print(f"  Bunker Savings: ${option.result.bunker_port_savings:,.0f}")
                 print(f"  Max Hire Offer: ${option.recommended_hire_rate:,.0f}/day")
                 print(f"  Expected TCE: ${option.tce:,.0f}/day")
 
@@ -1474,6 +1495,12 @@ def print_optimization_report(
             print(f"  [DATE] Arrives: {result.arrival_date.strftime('%d %b %Y')} (Laycan ends: {result.laycan_end.strftime('%d %b %Y')})")
             print(f"  [TIME]  Duration: {result.total_days:.1f} days")
             print(f"  [CARGO] Cargo: {result.cargo_quantity:,} MT")
+            if result.selected_bunker_port:
+                print(f"  [BUNKER] Port: {result.selected_bunker_port}")
+                print(f"  [BUNKER] Fuel: {result.bunker_fuel_vlsfo_qty:.0f} MT VLSFO, "
+                      f"{result.bunker_fuel_mgo_qty:.0f} MT MGO")
+                if result.bunker_port_savings > 0:
+                    print(f"  [BUNKER] Savings: ${result.bunker_port_savings:,.0f}")
             print(f"  [$] Revenue: ${result.net_freight:,.0f}")
             print(f"  [FUEL] Bunker Cost: ${result.total_bunker_cost:,.0f}")
             print(f"  [PORT] Port Costs: ${result.port_costs:,.0f}")

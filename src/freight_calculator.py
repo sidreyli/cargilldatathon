@@ -102,6 +102,7 @@ class VoyageConfig:
     vessel_constants: float = 3500  # Reserve for bunkers/stores on vessel (MT)
     port_delay_load_fraction: float = 0.5  # Fraction of extra delay at load port
     min_voyage_days: float = 0.001  # Minimum days to avoid division by zero
+    bunker_threshold_mt: float = 50.0  # Minimum fuel to trigger bunkering stop
 
 
 @dataclass
@@ -134,6 +135,28 @@ class BunkerPrices:
         
         # Default to Singapore
         return self.prices.get('Singapore', {}).get(fuel_type, 490)
+
+
+# All available bunkering ports (evaluate all candidates for each voyage)
+ALL_BUNKER_PORTS = [
+    'Singapore',      # SE Asia hub
+    'Fujairah',       # Middle East hub
+    'Rotterdam',      # NW Europe hub
+    'Gibraltar',      # Med/Atlantic hub
+    'Durban',         # Southern Africa hub
+    'Qingdao',        # China hub
+    'Shanghai',       # China hub
+    'Port Louis',     # Indian Ocean hub
+    'Richards Bay',   # South African hub
+]
+
+
+def get_bunker_candidates(vessel_port: str, load_port: str) -> List[str]:
+    """
+    Get all bunker port candidates.
+    Returns all 9 ports for comprehensive optimization.
+    """
+    return ALL_BUNKER_PORTS
 
 
 @dataclass
@@ -185,6 +208,21 @@ class VoyageResult:
     # Bunker status
     bunker_needed_vlsfo: float
     bunker_needed_mgo: float
+
+    # Bunkering stop information
+    num_bunkering_stops: int
+    extra_bunkering_days: float
+    bunkering_lumpsum_fee: float
+    extra_mgo_for_bunker: float
+
+    # Explicit bunkering port routing
+    selected_bunker_port: Optional[str]          # Which port was selected
+    bunker_port_savings: float                   # Savings vs worst option
+    ballast_leg_to_bunker: float                 # Distance: current → bunker (nm)
+    bunker_to_load_leg: float                    # Distance: bunker → load (nm)
+    direct_ballast_distance: float               # Original: current → load (nm)
+    bunker_fuel_vlsfo_qty: float                 # VLSFO quantity purchased (MT)
+    bunker_fuel_mgo_qty: float                   # MGO quantity purchased (MT)
 
 
 # =============================================================================
@@ -604,6 +642,106 @@ class FreightCalculator:
                 f"Invalid date format for {field_name}: '{date_str}'. "
                 f"Expected format: 'DD Mon YYYY' (e.g., '25 Feb 2026'). Error: {e}"
             )
+
+    def find_optimal_bunker_port(
+        self,
+        vessel: Vessel,
+        cargo: Cargo,
+        bunker_needed_vlsfo: float,
+        bunker_needed_mgo: float,
+        current_speed_ballast: float,
+        fuel_consumption_rate_vlsfo: float,  # MT/day at sea
+        fuel_consumption_rate_mgo: float,
+        hire_rate: float,
+    ) -> Tuple[Optional[str], float, float, float, float]:
+        """
+        Find optimal bunkering port for the voyage.
+
+        Returns:
+            (selected_port, leg1_distance, leg2_distance, savings, bunker_cost)
+        """
+        # Get direct distance baseline
+        direct_distance = self.distances.get_distance(vessel.current_port, cargo.load_port)
+        if not direct_distance:
+            # Fallback: assume bunkering at load port
+            return None, 0, direct_distance or 0, 0, 0
+
+        # Get candidate bunker ports (all 9 ports)
+        candidates = get_bunker_candidates(vessel.current_port, cargo.load_port)
+
+        # Baseline: bunker at load port (current behavior)
+        load_port_vlsfo_price = self.bunker_prices.get_price(cargo.load_port, 'VLSFO')
+        load_port_mgo_price = self.bunker_prices.get_price(cargo.load_port, 'MGO')
+        baseline_cost = (
+            bunker_needed_vlsfo * load_port_vlsfo_price +
+            bunker_needed_mgo * load_port_mgo_price +
+            5000.0  # Lumpsum fee
+        )
+
+        # Evaluate each candidate
+        best_port = None
+        best_cost = baseline_cost
+        best_leg1 = 0
+        best_leg2 = direct_distance
+        best_bunker_cost = baseline_cost
+
+        for bunker_port in candidates:
+            # Calculate route distances
+            leg1 = self.distances.get_distance(vessel.current_port, bunker_port)
+            leg2 = self.distances.get_distance(bunker_port, cargo.load_port)
+
+            if not leg1 or not leg2:
+                continue  # Skip if distances unavailable
+
+            # Calculate detour distance (can be negative if bunker port is on the way)
+            detour_distance = (leg1 + leg2) - direct_distance
+
+            # Get bunker prices at this port
+            vlsfo_price = self.bunker_prices.get_price(bunker_port, 'VLSFO')
+            mgo_price = self.bunker_prices.get_price(bunker_port, 'MGO')
+
+            # Cost components
+            bunker_fuel_cost = (
+                bunker_needed_vlsfo * vlsfo_price +
+                bunker_needed_mgo * mgo_price
+            )
+            lumpsum_fee = 5000.0
+
+            # Detour costs (if detour > 0)
+            if detour_distance > 0:
+                detour_days = detour_distance / (current_speed_ballast * 24)
+                detour_fuel_cost = (
+                    detour_days * fuel_consumption_rate_vlsfo * vlsfo_price +
+                    detour_days * fuel_consumption_rate_mgo * mgo_price
+                )
+                detour_hire_cost = detour_days * hire_rate
+            else:
+                # Negative detour = bunker port is on the way (saves distance)
+                detour_days = detour_distance / (current_speed_ballast * 24)  # Negative
+                detour_fuel_cost = (
+                    detour_days * fuel_consumption_rate_vlsfo * vlsfo_price +
+                    detour_days * fuel_consumption_rate_mgo * mgo_price
+                )  # Negative (savings)
+                detour_hire_cost = detour_days * hire_rate  # Negative (savings)
+
+            # Total cost
+            total_cost = bunker_fuel_cost + lumpsum_fee + detour_fuel_cost + detour_hire_cost
+
+            # Select if better (or equal cost but closer distance - tiebreaker)
+            if total_cost < best_cost or (
+                abs(total_cost - best_cost) < 1000 and  # Within $1K
+                (leg1 + leg2) < (best_leg1 + best_leg2)
+            ):
+                best_cost = total_cost
+                best_port = bunker_port
+                best_leg1 = leg1
+                best_leg2 = leg2
+                best_bunker_cost = bunker_fuel_cost + lumpsum_fee
+
+        # Calculate savings vs baseline
+        savings = baseline_cost - best_cost
+
+        return best_port, best_leg1, best_leg2, savings, best_bunker_cost
     
     def calculate_voyage(
         self,
@@ -765,7 +903,97 @@ class FreightCalculator:
         # Bunker needed (vs remaining on board)
         bunker_needed_vlsfo = max(0, vlsfo_consumed - vessel.bunker_rob_vlsfo)
         bunker_needed_mgo = max(0, mgo_consumed - vessel.bunker_rob_mgo)
-        
+
+        # -----------------------------------------------------------------
+        # 8a. EXPLICIT BUNKERING PORT ROUTING & OPTIMIZATION
+        # -----------------------------------------------------------------
+
+        total_bunker_needed = bunker_needed_vlsfo + bunker_needed_mgo
+        needs_bunkering = total_bunker_needed > self.config.bunker_threshold_mt
+
+        if needs_bunkering:
+            # Find optimal bunker port
+            (
+                selected_bunker_port,
+                leg1_distance,  # current_port → bunker_port
+                leg2_distance,  # bunker_port → load_port
+                bunker_savings,
+                bunker_fuel_cost_at_port,
+            ) = self.find_optimal_bunker_port(
+                vessel=vessel,
+                cargo=cargo,
+                bunker_needed_vlsfo=bunker_needed_vlsfo,
+                bunker_needed_mgo=bunker_needed_mgo,
+                current_speed_ballast=speed_ballast,
+                fuel_consumption_rate_vlsfo=fuel_ballast_vlsfo,
+                fuel_consumption_rate_mgo=fuel_ballast_mgo,
+                hire_rate=vessel.hire_rate,
+            )
+
+            # Update ballast distance to use explicit routing
+            if selected_bunker_port:
+                # Recalculate ballast leg with explicit routing
+                ballast_distance = leg1_distance + leg2_distance
+                ballast_days = ballast_distance / (speed_ballast * 24)
+
+                # Recalculate ballast fuel consumption with updated distance
+                vlsfo_ballast = ballast_days * fuel_ballast_vlsfo
+                mgo_ballast = ballast_days * fuel_ballast_mgo
+
+                # Update total fuel
+                vlsfo_consumed = vlsfo_ballast + vlsfo_laden
+                mgo_consumed = mgo_ballast + mgo_laden + mgo_working + mgo_idle
+
+                # Recalculate bunker needs (may change slightly due to detour)
+                bunker_needed_vlsfo = max(0, vlsfo_consumed - vessel.bunker_rob_vlsfo)
+                bunker_needed_mgo = max(0, mgo_consumed - vessel.bunker_rob_mgo)
+
+                # Get bunker prices at selected port
+                vlsfo_price = self.bunker_prices.get_price(selected_bunker_port, 'VLSFO') * bunker_price_adjustment
+                mgo_price = self.bunker_prices.get_price(selected_bunker_port, 'MGO') * bunker_price_adjustment
+            else:
+                # Fallback: use load port as bunker location
+                selected_bunker_port = cargo.load_port
+                leg1_distance = 0
+                leg2_distance = ballast_distance
+                bunker_savings = 0
+
+            # Bunkering stop costs
+            extra_bunkering_days = 1.0
+            extra_mgo_for_bunker = 1.0 * vessel.port_idle_mgo
+            bunkering_lumpsum_fee = 5000.0
+            num_bunkering_stops = 1
+
+            # Update voyage variables
+            idle_days += extra_bunkering_days
+            mgo_idle += extra_mgo_for_bunker
+            mgo_consumed += extra_mgo_for_bunker
+            total_days += extra_bunkering_days
+
+            # Recalculate costs with selected bunker port prices
+            bunker_cost_vlsfo = vlsfo_consumed * vlsfo_price
+            bunker_cost_mgo = mgo_consumed * mgo_price
+            total_bunker_cost = bunker_cost_vlsfo + bunker_cost_mgo
+
+            # Store original direct distance for reporting
+            direct_ballast_distance = self.distances.get_distance(
+                vessel.current_port, cargo.load_port
+            )
+            if direct_ballast_distance is None:
+                direct_ballast_distance = ballast_distance
+
+        else:
+            # No bunkering needed
+            selected_bunker_port = None
+            bunker_savings = 0
+            leg1_distance = 0
+            leg2_distance = ballast_distance
+            direct_ballast_distance = ballast_distance
+            extra_bunkering_days = 0.0
+            extra_mgo_for_bunker = 0.0
+            bunkering_lumpsum_fee = 0.0
+            num_bunkering_stops = 0
+
         # -----------------------------------------------------------------
         # 9. REVENUE
         # -----------------------------------------------------------------
@@ -794,7 +1022,7 @@ class FreightCalculator:
         # -----------------------------------------------------------------
         # 11. PROFIT CALCULATION
         # -----------------------------------------------------------------
-        total_costs = total_bunker_cost + hire_cost + port_costs + misc_costs
+        total_costs = total_bunker_cost + hire_cost + port_costs + misc_costs + bunkering_lumpsum_fee
         
         # Gross profit (before hire)
         gross_profit = net_freight - total_bunker_cost - port_costs - misc_costs
@@ -858,6 +1086,21 @@ class FreightCalculator:
             mgo_consumed=round(mgo_consumed, 2),
             bunker_needed_vlsfo=round(bunker_needed_vlsfo, 2),
             bunker_needed_mgo=round(bunker_needed_mgo, 2),
+
+            # Bunkering stop information
+            num_bunkering_stops=num_bunkering_stops,
+            extra_bunkering_days=round(extra_bunkering_days, 2),
+            bunkering_lumpsum_fee=round(bunkering_lumpsum_fee, 2),
+            extra_mgo_for_bunker=round(extra_mgo_for_bunker, 2),
+
+            # Explicit bunkering port routing
+            selected_bunker_port=selected_bunker_port,
+            bunker_port_savings=round(bunker_savings, 2),
+            ballast_leg_to_bunker=round(leg1_distance, 2),
+            bunker_to_load_leg=round(leg2_distance, 2),
+            direct_ballast_distance=round(direct_ballast_distance, 2),
+            bunker_fuel_vlsfo_qty=round(bunker_needed_vlsfo, 2),
+            bunker_fuel_mgo_qty=round(bunker_needed_mgo, 2),
         )
 
 
