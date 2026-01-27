@@ -422,6 +422,474 @@ class PortDistanceManager:
             # Singapore hub - reference point
             # -----------------------------------------------------------------
             ('SINGAPORE', 'PORT HEDLAND'): 1678,         # Well-known route
+
+            # =================================================================
+            # BUNKER PORT DISTANCES - Added to reduce fallback rate
+            # =================================================================
+            # Distances from all 9 major bunker ports to common load/discharge
+            # ports. These are great circle estimates optimized for the bunker
+            # optimization algorithm to find optimal bunkering locations.
+            # =================================================================
+
+            # -----------------------------------------------------------------
+            # SINGAPORE (SE Asia Hub) - to major load ports
+            # -----------------------------------------------------------------
+            ('SINGAPORE', 'KAMSAR ANCHORAGE'): 8500,     # Singapore to Guinea
+            ('SINGAPORE', 'ITAGUAI'): 11200,             # Singapore to Brazil
+            ('SINGAPORE', 'TUBARAO'): 11300,             # Singapore to Brazil
+            ('SINGAPORE', 'DAMPIER'): 1750,              # Singapore to Australia
+            ('SINGAPORE', 'TABONEO'): 680,               # Singapore to Indonesia
+            ('SINGAPORE', 'PONTA DA MADEIRA'): 11400,    # Singapore to Brazil
+            ('SINGAPORE', 'KRISHNAPATNAM'): 1850,        # Singapore to India
+            ('SINGAPORE', 'TELUK RUBIAH'): 220,          # Singapore to Malaysia
+            ('SINGAPORE', 'MANGALORE'): 2100,            # Singapore to India
+            ('SINGAPORE', 'GWANGYANG'): 2460,            # Singapore to S.Korea
+            ('SINGAPORE', 'QINGDAO'): 2460,              # Singapore to China
+            ('SINGAPORE', 'SHANGHAI'): 2200,             # Singapore to China
+            ('SINGAPORE', 'FANGCHENG'): 1300,            # Singapore to China
+            ('SINGAPORE', 'CAOFEIDIAN'): 2650,           # Singapore to China
+            ('SINGAPORE', 'TIANJIN'): 2700,              # Singapore to China
+            ('SINGAPORE', 'LIANYUNGANG'): 2550,          # Singapore to China
+            ('SINGAPORE', 'PARADIP'): 1950,              # Singapore to India
+            ('SINGAPORE', 'MUNDRA'): 2400,               # Singapore to India
+            ('SINGAPORE', 'KANDLA'): 2500,               # Singapore to India
+            ('SINGAPORE', 'VIZAG'): 1900,                # Singapore to India
+            ('SINGAPORE', 'SALDANHA BAY'): 5600,         # Singapore to S.Africa
+            ('SINGAPORE', 'ROTTERDAM'): 9200,            # Singapore to Netherlands
+            ('SINGAPORE', 'VANCOUVER'): 6800,            # Singapore to Canada
+            ('SINGAPORE', 'MAP TA PHUT'): 763,           # Singapore to Thailand
+            ('SINGAPORE', 'XIAMEN'): 1650,               # Singapore to China
+            ('SINGAPORE', 'JINGTANG'): 2750,             # Singapore to China
+            ('SINGAPORE', 'JUBAIL'): 3900,               # Singapore to Saudi Arabia
+            ('SINGAPORE', 'PORT TALBOT'): 10500,         # Singapore to Wales
+
+            # -----------------------------------------------------------------
+            # FUJAIRAH (Middle East Hub) - to major load ports
+            # -----------------------------------------------------------------
+            ('FUJAIRAH', 'KAMSAR ANCHORAGE'): 6200,      # Fujairah to Guinea
+            ('FUJAIRAH', 'PORT HEDLAND'): 5300,          # Fujairah to Australia
+            ('FUJAIRAH', 'ITAGUAI'): 9800,               # Fujairah to Brazil
+            ('FUJAIRAH', 'TUBARAO'): 9900,               # Fujairah to Brazil
+            ('FUJAIRAH', 'DAMPIER'): 5400,               # Fujairah to Australia
+            ('FUJAIRAH', 'TABONEO'): 4600,               # Fujairah to Indonesia
+            ('FUJAIRAH', 'PONTA DA MADEIRA'): 10000,     # Fujairah to Brazil
+            ('FUJAIRAH', 'KRISHNAPATNAM'): 2900,         # Fujairah to India
+            ('FUJAIRAH', 'TELUK RUBIAH'): 3950,          # Fujairah to Malaysia
+            ('FUJAIRAH', 'MANGALORE'): 1900,             # Fujairah to India
+            ('FUJAIRAH', 'GWANGYANG'): 6800,             # Fujairah to S.Korea
+            ('FUJAIRAH', 'QINGDAO'): 6800,               # Fujairah to China
+            ('FUJAIRAH', 'SHANGHAI'): 6500,              # Fujairah to China
+            ('FUJAIRAH', 'FANGCHENG'): 5600,             # Fujairah to China
+            ('FUJAIRAH', 'CAOFEIDIAN'): 6950,            # Fujairah to China
+            ('FUJAIRAH', 'TIANJIN'): 7000,               # Fujairah to China
+            ('FUJAIRAH', 'LIANYUNGANG'): 6850,           # Fujairah to China
+            ('FUJAIRAH', 'PARADIP'): 2400,               # Fujairah to India
+            ('FUJAIRAH', 'MUNDRA'): 1100,                # Fujairah to India
+            ('FUJAIRAH', 'KANDLA'): 1000,                # Fujairah to India
+            ('FUJAIRAH', 'VIZAG'): 2650,                 # Fujairah to India
+            ('FUJAIRAH', 'SALDANHA BAY'): 5000,          # Fujairah to S.Africa
+            ('FUJAIRAH', 'ROTTERDAM'): 6800,             # Fujairah to Netherlands
+            ('FUJAIRAH', 'VANCOUVER'): 10500,            # Fujairah to Canada
+            ('FUJAIRAH', 'MAP TA PHUT'): 3400,           # Fujairah to Thailand
+            ('FUJAIRAH', 'XIAMEN'): 5900,                # Fujairah to China
+            ('FUJAIRAH', 'JINGTANG'): 7050,              # Fujairah to China
+            ('FUJAIRAH', 'JUBAIL'): 1050,                # Fujairah to Saudi Arabia
+            ('FUJAIRAH', 'PORT TALBOT'): 7800,           # Fujairah to Wales
+
+            # -----------------------------------------------------------------
+            # ROTTERDAM (NW Europe Hub) - to major load ports
+            # -----------------------------------------------------------------
+            ('ROTTERDAM', 'PORT HEDLAND'): 11500,        # Rotterdam to Australia
+            ('ROTTERDAM', 'ITAGUAI'): 6200,              # Rotterdam to Brazil
+            ('ROTTERDAM', 'TUBARAO'): 6300,              # Rotterdam to Brazil
+            ('ROTTERDAM', 'DAMPIER'): 11600,             # Rotterdam to Australia
+            ('ROTTERDAM', 'TABONEO'): 10100,             # Rotterdam to Indonesia
+            ('ROTTERDAM', 'PONTA DA MADEIRA'): 6400,     # Rotterdam to Brazil
+            ('ROTTERDAM', 'KRISHNAPATNAM'): 8900,        # Rotterdam to India
+            ('ROTTERDAM', 'TELUK RUBIAH'): 9600,         # Rotterdam to Malaysia
+            ('ROTTERDAM', 'MANGALORE'): 8200,            # Rotterdam to India
+            ('ROTTERDAM', 'GWANGYANG'): 12500,           # Rotterdam to S.Korea
+            ('ROTTERDAM', 'QINGDAO'): 12500,             # Rotterdam to China
+            ('ROTTERDAM', 'SHANGHAI'): 12200,            # Rotterdam to China
+            ('ROTTERDAM', 'FANGCHENG'): 11300,           # Rotterdam to China
+            ('ROTTERDAM', 'CAOFEIDIAN'): 12650,          # Rotterdam to China
+            ('ROTTERDAM', 'TIANJIN'): 12700,             # Rotterdam to China
+            ('ROTTERDAM', 'LIANYUNGANG'): 12550,         # Rotterdam to China
+            ('ROTTERDAM', 'PARADIP'): 8600,              # Rotterdam to India
+            ('ROTTERDAM', 'MUNDRA'): 7900,               # Rotterdam to India
+            ('ROTTERDAM', 'KANDLA'): 7800,               # Rotterdam to India
+            ('ROTTERDAM', 'VIZAG'): 8850,                # Rotterdam to India
+            ('ROTTERDAM', 'SALDANHA BAY'): 7000,         # Rotterdam to S.Africa
+            ('ROTTERDAM', 'VANCOUVER'): 7800,            # Rotterdam to Canada
+            ('ROTTERDAM', 'MAP TA PHUT'): 9900,          # Rotterdam to Thailand
+            ('ROTTERDAM', 'XIAMEN'): 11600,              # Rotterdam to China
+            ('ROTTERDAM', 'JINGTANG'): 12750,            # Rotterdam to China
+            ('ROTTERDAM', 'JUBAIL'): 6800,               # Rotterdam to Saudi Arabia
+            ('ROTTERDAM', 'PORT TALBOT'): 650,           # Rotterdam to Wales
+            ('ROTTERDAM', 'SINGAPORE'): 9200,            # Rotterdam to Singapore
+
+            # -----------------------------------------------------------------
+            # GIBRALTAR (Med/Atlantic Hub) - to major load ports
+            # -----------------------------------------------------------------
+            ('GIBRALTAR', 'KAMSAR ANCHORAGE'): 2500,     # Gibraltar to Guinea
+            ('GIBRALTAR', 'PORT HEDLAND'): 11200,        # Gibraltar to Australia
+            ('GIBRALTAR', 'ITAGUAI'): 5400,              # Gibraltar to Brazil
+            ('GIBRALTAR', 'TUBARAO'): 5500,              # Gibraltar to Brazil
+            ('GIBRALTAR', 'DAMPIER'): 11300,             # Gibraltar to Australia
+            ('GIBRALTAR', 'TABONEO'): 9600,              # Gibraltar to Indonesia
+            ('GIBRALTAR', 'PONTA DA MADEIRA'): 5600,     # Gibraltar to Brazil
+            ('GIBRALTAR', 'KRISHNAPATNAM'): 8200,        # Gibraltar to India
+            ('GIBRALTAR', 'TELUK RUBIAH'): 8900,         # Gibraltar to Malaysia
+            ('GIBRALTAR', 'MANGALORE'): 7500,            # Gibraltar to India
+            ('GIBRALTAR', 'GWANGYANG'): 12200,           # Gibraltar to S.Korea
+            ('GIBRALTAR', 'QINGDAO'): 12200,             # Gibraltar to China
+            ('GIBRALTAR', 'SHANGHAI'): 11900,            # Gibraltar to China
+            ('GIBRALTAR', 'FANGCHENG'): 11000,           # Gibraltar to China
+            ('GIBRALTAR', 'CAOFEIDIAN'): 12350,          # Gibraltar to China
+            ('GIBRALTAR', 'TIANJIN'): 12400,             # Gibraltar to China
+            ('GIBRALTAR', 'LIANYUNGANG'): 12250,         # Gibraltar to China
+            ('GIBRALTAR', 'PARADIP'): 7900,              # Gibraltar to India
+            ('GIBRALTAR', 'MUNDRA'): 7200,               # Gibraltar to India
+            ('GIBRALTAR', 'KANDLA'): 7100,               # Gibraltar to India
+            ('GIBRALTAR', 'VIZAG'): 8150,                # Gibraltar to India
+            ('GIBRALTAR', 'SALDANHA BAY'): 5800,         # Gibraltar to S.Africa
+            ('GIBRALTAR', 'ROTTERDAM'): 1750,            # Gibraltar to Netherlands
+            ('GIBRALTAR', 'VANCOUVER'): 8900,            # Gibraltar to Canada
+            ('GIBRALTAR', 'MAP TA PHUT'): 9200,          # Gibraltar to Thailand
+            ('GIBRALTAR', 'XIAMEN'): 11300,              # Gibraltar to China
+            ('GIBRALTAR', 'JINGTANG'): 12450,            # Gibraltar to China
+            ('GIBRALTAR', 'JUBAIL'): 6100,               # Gibraltar to Saudi Arabia
+            ('GIBRALTAR', 'PORT TALBOT'): 1450,          # Gibraltar to Wales
+            ('GIBRALTAR', 'SINGAPORE'): 8800,            # Gibraltar to Singapore
+
+            # -----------------------------------------------------------------
+            # DURBAN (Southern Africa Hub) - to major load ports
+            # -----------------------------------------------------------------
+            ('DURBAN', 'KAMSAR ANCHORAGE'): 5400,        # Durban to Guinea
+            ('DURBAN', 'PORT HEDLAND'): 5100,            # Durban to Australia
+            ('DURBAN', 'ITAGUAI'): 5800,                 # Durban to Brazil
+            ('DURBAN', 'TUBARAO'): 5900,                 # Durban to Brazil
+            ('DURBAN', 'DAMPIER'): 5200,                 # Durban to Australia
+            ('DURBAN', 'TABONEO'): 5850,                 # Durban to Indonesia
+            ('DURBAN', 'PONTA DA MADEIRA'): 6000,        # Durban to Brazil
+            ('DURBAN', 'KRISHNAPATNAM'): 3700,           # Durban to India
+            ('DURBAN', 'TELUK RUBIAH'): 4900,            # Durban to Malaysia
+            ('DURBAN', 'MANGALORE'): 3400,               # Durban to India
+            ('DURBAN', 'GWANGYANG'): 7400,               # Durban to S.Korea
+            ('DURBAN', 'QINGDAO'): 7400,                 # Durban to China
+            ('DURBAN', 'SHANGHAI'): 7100,                # Durban to China
+            ('DURBAN', 'FANGCHENG'): 6200,               # Durban to China
+            ('DURBAN', 'CAOFEIDIAN'): 7550,              # Durban to China
+            ('DURBAN', 'TIANJIN'): 7600,                 # Durban to China
+            ('DURBAN', 'LIANYUNGANG'): 7450,             # Durban to China
+            ('DURBAN', 'PARADIP'): 3500,                 # Durban to India
+            ('DURBAN', 'MUNDRA'): 3200,                  # Durban to India
+            ('DURBAN', 'KANDLA'): 3100,                  # Durban to India
+            ('DURBAN', 'VIZAG'): 3750,                   # Durban to India
+            ('DURBAN', 'SALDANHA BAY'): 850,             # Durban to S.Africa
+            ('DURBAN', 'ROTTERDAM'): 7000,               # Durban to Netherlands
+            ('DURBAN', 'VANCOUVER'): 12200,              # Durban to Canada
+            ('DURBAN', 'MAP TA PHUT'): 4700,             # Durban to Thailand
+            ('DURBAN', 'XIAMEN'): 6500,                  # Durban to China
+            ('DURBAN', 'JINGTANG'): 7650,                # Durban to China
+            ('DURBAN', 'JUBAIL'): 4000,                  # Durban to Saudi Arabia
+            ('DURBAN', 'PORT TALBOT'): 7700,             # Durban to Wales
+            ('DURBAN', 'SINGAPORE'): 4900,               # Durban to Singapore
+
+            # -----------------------------------------------------------------
+            # QINGDAO (China Hub) - to major load ports
+            # -----------------------------------------------------------------
+            ('QINGDAO', 'KAMSAR ANCHORAGE'): 11800,      # Qingdao to Guinea
+            ('QINGDAO', 'PORT HEDLAND'): 3300,           # Qingdao to Australia
+            ('QINGDAO', 'ITAGUAI'): 12200,               # Qingdao to Brazil
+            ('QINGDAO', 'TUBARAO'): 12100,               # Qingdao to Brazil
+            ('QINGDAO', 'DAMPIER'): 3400,                # Qingdao to Australia
+            ('QINGDAO', 'PONTA DA MADEIRA'): 12300,      # Qingdao to Brazil
+            ('QINGDAO', 'KRISHNAPATNAM'): 3050,          # Qingdao to India
+            ('QINGDAO', 'TELUK RUBIAH'): 2350,           # Qingdao to Malaysia
+            ('QINGDAO', 'MANGALORE'): 3450,              # Qingdao to India
+            ('QINGDAO', 'GWANGYANG'): 520,               # Qingdao to S.Korea
+            ('QINGDAO', 'SHANGHAI'): 380,                # Qingdao to China
+            ('QINGDAO', 'FANGCHENG'): 1420,              # Qingdao to China
+            ('QINGDAO', 'CAOFEIDIAN'): 280,              # Qingdao to China
+            ('QINGDAO', 'TIANJIN'): 330,                 # Qingdao to China
+            ('QINGDAO', 'LIANYUNGANG'): 180,             # Qingdao to China
+            ('QINGDAO', 'PARADIP'): 3150,                # Qingdao to India
+            ('QINGDAO', 'MUNDRA'): 3700,                 # Qingdao to India
+            ('QINGDAO', 'KANDLA'): 3800,                 # Qingdao to India
+            ('QINGDAO', 'VIZAG'): 3000,                  # Qingdao to India
+            ('QINGDAO', 'SALDANHA BAY'): 8800,           # Qingdao to S.Africa
+            ('QINGDAO', 'ROTTERDAM'): 12500,             # Qingdao to Netherlands
+            ('QINGDAO', 'VANCOUVER'): 5200,              # Qingdao to Canada
+            ('QINGDAO', 'MAP TA PHUT'): 2000,            # Qingdao to Thailand
+            ('QINGDAO', 'XIAMEN'): 850,                  # Qingdao to China
+            ('QINGDAO', 'JINGTANG'): 240,                # Qingdao to China
+            ('QINGDAO', 'JUBAIL'): 6800,                 # Qingdao to Saudi Arabia
+            ('QINGDAO', 'PORT TALBOT'): 13200,           # Qingdao to Wales
+            ('QINGDAO', 'SINGAPORE'): 2460,              # Qingdao to Singapore
+            ('QINGDAO', 'FUJAIRAH'): 6800,               # Qingdao to Fujairah
+
+            # -----------------------------------------------------------------
+            # SHANGHAI (China Hub) - to major load ports
+            # -----------------------------------------------------------------
+            ('SHANGHAI', 'KAMSAR ANCHORAGE'): 12200,     # Shanghai to Guinea
+            ('SHANGHAI', 'PORT HEDLAND'): 3238,          # Shanghai to Australia
+            ('SHANGHAI', 'ITAGUAI'): 12100,              # Shanghai to Brazil
+            ('SHANGHAI', 'TUBARAO'): 12000,              # Shanghai to Brazil
+            ('SHANGHAI', 'DAMPIER'): 3350,               # Shanghai to Australia
+            ('SHANGHAI', 'TABONEO'): 1900,               # Shanghai to Indonesia
+            ('SHANGHAI', 'PONTA DA MADEIRA'): 12200,     # Shanghai to Brazil
+            ('SHANGHAI', 'KRISHNAPATNAM'): 2950,         # Shanghai to India
+            ('SHANGHAI', 'TELUK RUBIAH'): 2100,          # Shanghai to Malaysia
+            ('SHANGHAI', 'MANGALORE'): 3350,             # Shanghai to India
+            ('SHANGHAI', 'GWANGYANG'): 490,              # Shanghai to S.Korea
+            ('SHANGHAI', 'QINGDAO'): 380,                # Shanghai to China
+            ('SHANGHAI', 'FANGCHENG'): 1100,             # Shanghai to China
+            ('SHANGHAI', 'CAOFEIDIAN'): 520,             # Shanghai to China
+            ('SHANGHAI', 'TIANJIN'): 570,                # Shanghai to China
+            ('SHANGHAI', 'LIANYUNGANG'): 240,            # Shanghai to China
+            ('SHANGHAI', 'PARADIP'): 3050,               # Shanghai to India
+            ('SHANGHAI', 'MUNDRA'): 3600,                # Shanghai to India
+            ('SHANGHAI', 'KANDLA'): 3700,                # Shanghai to India
+            ('SHANGHAI', 'VIZAG'): 2900,                 # Shanghai to India
+            ('SHANGHAI', 'SALDANHA BAY'): 9200,          # Shanghai to S.Africa
+            ('SHANGHAI', 'ROTTERDAM'): 12200,            # Shanghai to Netherlands
+            ('SHANGHAI', 'VANCOUVER'): 5400,             # Shanghai to Canada
+            ('SHANGHAI', 'MAP TA PHUT'): 1750,           # Shanghai to Thailand
+            ('SHANGHAI', 'XIAMEN'): 420,                 # Shanghai to China
+            ('SHANGHAI', 'JINGTANG'): 480,               # Shanghai to China
+            ('SHANGHAI', 'JUBAIL'): 6500,                # Shanghai to Saudi Arabia
+            ('SHANGHAI', 'PORT TALBOT'): 12900,          # Shanghai to Wales
+            ('SHANGHAI', 'SINGAPORE'): 2200,             # Shanghai to Singapore
+            ('SHANGHAI', 'FUJAIRAH'): 6500,              # Shanghai to Fujairah
+
+            # -----------------------------------------------------------------
+            # PORT LOUIS (Indian Ocean Hub) - to major load ports
+            # -----------------------------------------------------------------
+            ('PORT LOUIS', 'KAMSAR ANCHORAGE'): 5600,    # Port Louis to Guinea
+            ('PORT LOUIS', 'PORT HEDLAND'): 3600,        # Port Louis to Australia
+            ('PORT LOUIS', 'ITAGUAI'): 6600,             # Port Louis to Brazil
+            ('PORT LOUIS', 'TUBARAO'): 6700,             # Port Louis to Brazil
+            ('PORT LOUIS', 'DAMPIER'): 3700,             # Port Louis to Australia
+            ('PORT LOUIS', 'TABONEO'): 3900,             # Port Louis to Indonesia
+            ('PORT LOUIS', 'PONTA DA MADEIRA'): 6800,    # Port Louis to Brazil
+            ('PORT LOUIS', 'KRISHNAPATNAM'): 2400,       # Port Louis to India
+            ('PORT LOUIS', 'TELUK RUBIAH'): 3300,        # Port Louis to Malaysia
+            ('PORT LOUIS', 'MANGALORE'): 2100,           # Port Louis to India
+            ('PORT LOUIS', 'GWANGYANG'): 5900,           # Port Louis to S.Korea
+            ('PORT LOUIS', 'QINGDAO'): 5900,             # Port Louis to China
+            ('PORT LOUIS', 'SHANGHAI'): 5600,            # Port Louis to China
+            ('PORT LOUIS', 'FANGCHENG'): 4700,           # Port Louis to China
+            ('PORT LOUIS', 'CAOFEIDIAN'): 6050,          # Port Louis to China
+            ('PORT LOUIS', 'TIANJIN'): 6100,             # Port Louis to China
+            ('PORT LOUIS', 'LIANYUNGANG'): 5950,         # Port Louis to China
+            ('PORT LOUIS', 'PARADIP'): 2200,             # Port Louis to India
+            ('PORT LOUIS', 'MUNDRA'): 1900,              # Port Louis to India
+            ('PORT LOUIS', 'KANDLA'): 1800,              # Port Louis to India
+            ('PORT LOUIS', 'VIZAG'): 2450,               # Port Louis to India
+            ('PORT LOUIS', 'SALDANHA BAY'): 1950,        # Port Louis to S.Africa
+            ('PORT LOUIS', 'ROTTERDAM'): 7800,           # Port Louis to Netherlands
+            ('PORT LOUIS', 'VANCOUVER'): 10800,          # Port Louis to Canada
+            ('PORT LOUIS', 'MAP TA PHUT'): 3200,         # Port Louis to Thailand
+            ('PORT LOUIS', 'XIAMEN'): 5000,              # Port Louis to China
+            ('PORT LOUIS', 'JINGTANG'): 6150,            # Port Louis to China
+            ('PORT LOUIS', 'JUBAIL'): 2700,              # Port Louis to Saudi Arabia
+            ('PORT LOUIS', 'PORT TALBOT'): 8500,         # Port Louis to Wales
+            ('PORT LOUIS', 'SINGAPORE'): 3300,           # Port Louis to Singapore
+            ('PORT LOUIS', 'FUJAIRAH'): 2500,            # Port Louis to Fujairah
+
+            # -----------------------------------------------------------------
+            # RICHARDS BAY (South African Hub) - to major load ports
+            # -----------------------------------------------------------------
+            ('RICHARDS BAY', 'KAMSAR ANCHORAGE'): 5600,  # Richards Bay to Guinea
+            ('RICHARDS BAY', 'PORT HEDLAND'): 5300,      # Richards Bay to Australia
+            ('RICHARDS BAY', 'ITAGUAI'): 6000,           # Richards Bay to Brazil
+            ('RICHARDS BAY', 'TUBARAO'): 6100,           # Richards Bay to Brazil
+            ('RICHARDS BAY', 'DAMPIER'): 5400,           # Richards Bay to Australia
+            ('RICHARDS BAY', 'TABONEO'): 6050,           # Richards Bay to Indonesia
+            ('RICHARDS BAY', 'PONTA DA MADEIRA'): 6200,  # Richards Bay to Brazil
+            ('RICHARDS BAY', 'KRISHNAPATNAM'): 3900,     # Richards Bay to India
+            ('RICHARDS BAY', 'TELUK RUBIAH'): 5100,      # Richards Bay to Malaysia
+            ('RICHARDS BAY', 'MANGALORE'): 3600,         # Richards Bay to India
+            ('RICHARDS BAY', 'GWANGYANG'): 7600,         # Richards Bay to S.Korea
+            ('RICHARDS BAY', 'QINGDAO'): 7600,           # Richards Bay to China
+            ('RICHARDS BAY', 'SHANGHAI'): 7300,          # Richards Bay to China
+            ('RICHARDS BAY', 'FANGCHENG'): 6400,         # Richards Bay to China
+            ('RICHARDS BAY', 'CAOFEIDIAN'): 7750,        # Richards Bay to China
+            ('RICHARDS BAY', 'TIANJIN'): 7800,           # Richards Bay to China
+            ('RICHARDS BAY', 'LIANYUNGANG'): 7650,       # Richards Bay to China
+            ('RICHARDS BAY', 'PARADIP'): 3700,           # Richards Bay to India
+            ('RICHARDS BAY', 'MUNDRA'): 3400,            # Richards Bay to India
+            ('RICHARDS BAY', 'KANDLA'): 3300,            # Richards Bay to India
+            ('RICHARDS BAY', 'VIZAG'): 3950,             # Richards Bay to India
+            ('RICHARDS BAY', 'SALDANHA BAY'): 900,       # Richards Bay to S.Africa
+            ('RICHARDS BAY', 'ROTTERDAM'): 7200,         # Richards Bay to Netherlands
+            ('RICHARDS BAY', 'VANCOUVER'): 12400,        # Richards Bay to Canada
+            ('RICHARDS BAY', 'MAP TA PHUT'): 4900,       # Richards Bay to Thailand
+            ('RICHARDS BAY', 'XIAMEN'): 6700,            # Richards Bay to China
+            ('RICHARDS BAY', 'JINGTANG'): 7850,          # Richards Bay to China
+            ('RICHARDS BAY', 'JUBAIL'): 4200,            # Richards Bay to Saudi Arabia
+            ('RICHARDS BAY', 'PORT TALBOT'): 7900,       # Richards Bay to Wales
+            ('RICHARDS BAY', 'SINGAPORE'): 5100,         # Richards Bay to Singapore
+            ('RICHARDS BAY', 'FUJAIRAH'): 4100,          # Richards Bay to Fujairah
+
+            # =================================================================
+            # VESSEL CURRENT POSITIONS TO BUNKER PORTS
+            # =================================================================
+            # Common vessel positions to bunker ports for the first leg of
+            # bunker routing (vessel_current_port -> bunker_port)
+            # =================================================================
+
+            # MAP TA PHUT (common vessel position) to bunker ports
+            ('MAP TA PHUT', 'SINGAPORE'): 763,           # Thailand to Singapore
+            ('MAP TA PHUT', 'FUJAIRAH'): 3400,           # Thailand to Fujairah
+            ('MAP TA PHUT', 'ROTTERDAM'): 9900,          # Thailand to Rotterdam
+            ('MAP TA PHUT', 'GIBRALTAR'): 9200,          # Thailand to Gibraltar
+            ('MAP TA PHUT', 'DURBAN'): 4700,             # Thailand to Durban
+            ('MAP TA PHUT', 'QINGDAO'): 2000,            # Thailand to Qingdao
+            ('MAP TA PHUT', 'SHANGHAI'): 1750,           # Thailand to Shanghai
+            ('MAP TA PHUT', 'PORT LOUIS'): 3200,         # Thailand to Port Louis
+            ('MAP TA PHUT', 'RICHARDS BAY'): 4900,       # Thailand to Richards Bay
+
+            # GWANGYANG (common vessel position) to bunker ports
+            ('GWANGYANG', 'SINGAPORE'): 2460,            # S.Korea to Singapore
+            ('GWANGYANG', 'FUJAIRAH'): 6800,             # S.Korea to Fujairah
+            ('GWANGYANG', 'ROTTERDAM'): 12500,           # S.Korea to Rotterdam
+            ('GWANGYANG', 'GIBRALTAR'): 12200,           # S.Korea to Gibraltar
+            ('GWANGYANG', 'DURBAN'): 7400,               # S.Korea to Durban
+            ('GWANGYANG', 'QINGDAO'): 520,               # S.Korea to Qingdao
+            ('GWANGYANG', 'SHANGHAI'): 490,              # S.Korea to Shanghai
+            ('GWANGYANG', 'PORT LOUIS'): 5900,           # S.Korea to Port Louis
+            ('GWANGYANG', 'RICHARDS BAY'): 7600,         # S.Korea to Richards Bay
+
+            # PORT TALBOT (common vessel position) to bunker ports
+            ('PORT TALBOT', 'SINGAPORE'): 10500,         # Wales to Singapore
+            ('PORT TALBOT', 'FUJAIRAH'): 7800,           # Wales to Fujairah
+            ('PORT TALBOT', 'ROTTERDAM'): 650,           # Wales to Rotterdam
+            ('PORT TALBOT', 'GIBRALTAR'): 1450,          # Wales to Gibraltar
+            ('PORT TALBOT', 'DURBAN'): 7700,             # Wales to Durban
+            ('PORT TALBOT', 'QINGDAO'): 13200,           # Wales to Qingdao
+            ('PORT TALBOT', 'SHANGHAI'): 12900,          # Wales to Shanghai
+            ('PORT TALBOT', 'PORT LOUIS'): 8500,         # Wales to Port Louis
+            ('PORT TALBOT', 'RICHARDS BAY'): 7900,       # Wales to Richards Bay
+
+            # JUBAIL (common vessel position) to bunker ports
+            ('JUBAIL', 'SINGAPORE'): 3900,               # Saudi Arabia to Singapore
+            ('JUBAIL', 'FUJAIRAH'): 1050,                # Saudi Arabia to Fujairah
+            ('JUBAIL', 'ROTTERDAM'): 6800,               # Saudi Arabia to Rotterdam
+            ('JUBAIL', 'GIBRALTAR'): 6100,               # Saudi Arabia to Gibraltar
+            ('JUBAIL', 'DURBAN'): 4000,                  # Saudi Arabia to Durban
+            ('JUBAIL', 'QINGDAO'): 6800,                 # Saudi Arabia to Qingdao
+            ('JUBAIL', 'SHANGHAI'): 6500,                # Saudi Arabia to Shanghai
+            ('JUBAIL', 'PORT LOUIS'): 2700,              # Saudi Arabia to Port Louis
+            ('JUBAIL', 'RICHARDS BAY'): 4200,            # Saudi Arabia to Richards Bay
+
+            # PARADIP (common vessel position) to bunker ports
+            ('PARADIP', 'SINGAPORE'): 1950,              # India to Singapore
+            ('PARADIP', 'FUJAIRAH'): 2400,               # India to Fujairah
+            ('PARADIP', 'ROTTERDAM'): 8600,              # India to Rotterdam
+            ('PARADIP', 'GIBRALTAR'): 7900,              # India to Gibraltar
+            ('PARADIP', 'DURBAN'): 3500,                 # India to Durban
+            ('PARADIP', 'QINGDAO'): 3150,                # India to Qingdao
+            ('PARADIP', 'SHANGHAI'): 3050,               # India to Shanghai
+            ('PARADIP', 'PORT LOUIS'): 2200,             # India to Port Louis
+            ('PARADIP', 'RICHARDS BAY'): 3700,           # India to Richards Bay
+
+            # QINGDAO (common vessel position) to bunker ports
+            ('QINGDAO', 'SINGAPORE'): 2460,              # China to Singapore
+            ('QINGDAO', 'ROTTERDAM'): 12500,             # China to Rotterdam
+            ('QINGDAO', 'GIBRALTAR'): 12200,             # China to Gibraltar
+            ('QINGDAO', 'DURBAN'): 7400,                 # China to Durban
+            ('QINGDAO', 'SHANGHAI'): 380,                # China to Shanghai
+            ('QINGDAO', 'PORT LOUIS'): 5900,             # China to Port Louis
+            ('QINGDAO', 'RICHARDS BAY'): 7600,           # China to Richards Bay
+
+            # XIAMEN (common vessel position) to bunker ports
+            ('XIAMEN', 'SINGAPORE'): 1650,               # China to Singapore
+            ('XIAMEN', 'FUJAIRAH'): 5900,                # China to Fujairah
+            ('XIAMEN', 'ROTTERDAM'): 11600,              # China to Rotterdam
+            ('XIAMEN', 'GIBRALTAR'): 11300,              # China to Gibraltar
+            ('XIAMEN', 'DURBAN'): 6500,                  # China to Durban
+            ('XIAMEN', 'QINGDAO'): 850,                  # China to Qingdao
+            ('XIAMEN', 'SHANGHAI'): 420,                 # China to Shanghai
+            ('XIAMEN', 'PORT LOUIS'): 5000,              # China to Port Louis
+            ('XIAMEN', 'RICHARDS BAY'): 6700,            # China to Richards Bay
+
+            # FANGCHENG (common vessel position) to bunker ports
+            ('FANGCHENG', 'SINGAPORE'): 1300,            # China to Singapore
+            ('FANGCHENG', 'FUJAIRAH'): 5600,             # China to Fujairah
+            ('FANGCHENG', 'ROTTERDAM'): 11300,           # China to Rotterdam
+            ('FANGCHENG', 'GIBRALTAR'): 11000,           # China to Gibraltar
+            ('FANGCHENG', 'DURBAN'): 6200,               # China to Durban
+            ('FANGCHENG', 'QINGDAO'): 1420,              # China to Qingdao
+            ('FANGCHENG', 'SHANGHAI'): 1100,             # China to Shanghai
+            ('FANGCHENG', 'PORT LOUIS'): 4700,           # China to Port Louis
+            ('FANGCHENG', 'RICHARDS BAY'): 6400,         # China to Richards Bay
+
+            # TIANJIN (common vessel position) to bunker ports
+            ('TIANJIN', 'SINGAPORE'): 2700,              # China to Singapore
+            ('TIANJIN', 'FUJAIRAH'): 7000,               # China to Fujairah
+            ('TIANJIN', 'ROTTERDAM'): 12700,             # China to Rotterdam
+            ('TIANJIN', 'GIBRALTAR'): 12400,             # China to Gibraltar
+            ('TIANJIN', 'DURBAN'): 7600,                 # China to Durban
+            ('TIANJIN', 'QINGDAO'): 330,                 # China to Qingdao
+            ('TIANJIN', 'SHANGHAI'): 570,                # China to Shanghai
+            ('TIANJIN', 'PORT LOUIS'): 6100,             # China to Port Louis
+            ('TIANJIN', 'RICHARDS BAY'): 7800,           # China to Richards Bay
+
+            # VIZAG (common vessel position) to bunker ports
+            ('VIZAG', 'SINGAPORE'): 1900,                # India to Singapore
+            ('VIZAG', 'FUJAIRAH'): 2650,                 # India to Fujairah
+            ('VIZAG', 'ROTTERDAM'): 8850,                # India to Rotterdam
+            ('VIZAG', 'GIBRALTAR'): 8150,                # India to Gibraltar
+            ('VIZAG', 'DURBAN'): 3750,                   # India to Durban
+            ('VIZAG', 'QINGDAO'): 3000,                  # India to Qingdao
+            ('VIZAG', 'SHANGHAI'): 2900,                 # India to Shanghai
+            ('VIZAG', 'PORT LOUIS'): 2450,               # India to Port Louis
+            ('VIZAG', 'RICHARDS BAY'): 3950,             # India to Richards Bay
+
+            # MUNDRA (common vessel position) to bunker ports
+            ('MUNDRA', 'SINGAPORE'): 2400,               # India to Singapore
+            ('MUNDRA', 'FUJAIRAH'): 1100,                # India to Fujairah
+            ('MUNDRA', 'ROTTERDAM'): 7900,               # India to Rotterdam
+            ('MUNDRA', 'GIBRALTAR'): 7200,               # India to Gibraltar
+            ('MUNDRA', 'DURBAN'): 3200,                  # India to Durban
+            ('MUNDRA', 'QINGDAO'): 3700,                 # India to Qingdao
+            ('MUNDRA', 'SHANGHAI'): 3600,                # India to Shanghai
+            ('MUNDRA', 'PORT LOUIS'): 1900,              # India to Port Louis
+            ('MUNDRA', 'RICHARDS BAY'): 3400,            # India to Richards Bay
+
+            # KANDLA (common vessel position) to bunker ports
+            ('KANDLA', 'SINGAPORE'): 2500,               # India to Singapore
+            ('KANDLA', 'FUJAIRAH'): 1000,                # India to Fujairah
+            ('KANDLA', 'ROTTERDAM'): 7800,               # India to Rotterdam
+            ('KANDLA', 'GIBRALTAR'): 7100,               # India to Gibraltar
+            ('KANDLA', 'DURBAN'): 3100,                  # India to Durban
+            ('KANDLA', 'QINGDAO'): 3800,                 # India to Qingdao
+            ('KANDLA', 'SHANGHAI'): 3700,                # India to Shanghai
+            ('KANDLA', 'PORT LOUIS'): 1800,              # India to Port Louis
+            ('KANDLA', 'RICHARDS BAY'): 3300,            # India to Richards Bay
+
+            # ROTTERDAM (common vessel position) to bunker ports
+            ('ROTTERDAM', 'SINGAPORE'): 9200,            # Netherlands to Singapore
+            ('ROTTERDAM', 'FUJAIRAH'): 6800,             # Netherlands to Fujairah
+            ('ROTTERDAM', 'GIBRALTAR'): 1750,            # Netherlands to Gibraltar
+            ('ROTTERDAM', 'DURBAN'): 7000,               # Netherlands to Durban
+            ('ROTTERDAM', 'QINGDAO'): 12500,             # Netherlands to Qingdao
+            ('ROTTERDAM', 'SHANGHAI'): 12200,            # Netherlands to Shanghai
+            ('ROTTERDAM', 'PORT LOUIS'): 7800,           # Netherlands to Port Louis
+            ('ROTTERDAM', 'RICHARDS BAY'): 7200,         # Netherlands to Richards Bay
+
+            # SALDANHA BAY (common vessel position) to bunker ports
+            ('SALDANHA BAY', 'SINGAPORE'): 5600,         # S.Africa to Singapore
+            ('SALDANHA BAY', 'FUJAIRAH'): 5000,          # S.Africa to Fujairah
+            ('SALDANHA BAY', 'ROTTERDAM'): 7000,         # S.Africa to Rotterdam
+            ('SALDANHA BAY', 'GIBRALTAR'): 5800,         # S.Africa to Gibraltar
+            ('SALDANHA BAY', 'DURBAN'): 850,             # S.Africa to Durban
+            ('SALDANHA BAY', 'QINGDAO'): 8800,           # S.Africa to Qingdao
+            ('SALDANHA BAY', 'SHANGHAI'): 9200,          # S.Africa to Shanghai
+            ('SALDANHA BAY', 'PORT LOUIS'): 1950,        # S.Africa to Port Louis
+            ('SALDANHA BAY', 'RICHARDS BAY'): 900,       # S.Africa to Richards Bay
         }
 
         # Pre-build normalized lookup for estimated distances

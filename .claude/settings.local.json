@@ -14,7 +14,12 @@
       "Bash(where:*)",
       "Bash(git commit:*)",
       "Bash(wc:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)",
+      "Bash(git merge:*)",
+      "Bash(set PYTHONPATH=%CD%)",
+      "Bash(dir:*)"
     ]
   }
 }
