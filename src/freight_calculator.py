@@ -308,6 +308,12 @@ class PortDistanceManager:
             'VIZAG': ['VIZAG', 'VISAKHAPATNAM'],
             'JUBAIL': ['JUBAIL'],
             'SHANGHAI': ['SHANGHAI'],
+            # Bunker port aliases
+            'FUJAIRAH': ['FUJAIRAH'],
+            'GIBRALTAR': ['GIBRALTAR'],
+            'DURBAN': ['DURBAN'],
+            'PORT LOUIS': ['PORT LOUIS'],
+            'RICHARDS BAY': ['RICHARDS BAY'],
         }
         
         # =================================================================
