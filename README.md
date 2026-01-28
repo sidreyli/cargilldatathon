@@ -1,140 +1,220 @@
 # Cargill Ocean Transportation Datathon 2026
-## Freight Calculator & Portfolio Optimizer
+## Full-Stack Freight Calculator & Portfolio Optimizer
 
 ---
 
 ## Overview
 
-This solution provides a comprehensive freight calculator and portfolio optimization system for Cargill's Capesize vessel fleet. It determines optimal vessel-cargo assignments to maximize profit while respecting laycan constraints.
+A comprehensive freight analytics platform for Cargill's Capesize vessel fleet. The system optimizes vessel-cargo assignments across both Cargill-owned vessels and market opportunities to maximize portfolio profit.
 
-## Key Features
+### Key Result: **$5.8M Total Portfolio Profit**
 
-- **Freight Calculator**: Calculates voyage economics including TCE, fuel costs, port costs, and profit
-- **Portfolio Optimizer**: Finds optimal vessel-cargo assignments using Hungarian algorithm or brute-force
-- **Scenario Analysis**: Identifies tipping points for bunker prices and port delays
-- **Market Vessel Analysis**: Evaluates third-party vessels for unassigned cargoes
-
-## Files Structure
-
-```
-cargillDatathon/
-├── freight_calculator.py      # Core freight calculation engine
-├── portfolio_optimizer.py     # Portfolio optimization & scenario analysis
-├── datathon_raw_data.md       # Raw datathon briefing data
-├── Port_Distances.csv         # Port-to-port distance data (~15,000 routes)
-├── Simple_calculator.xlsx     # Reference Excel calculator
-└── README.md                  # This file
-```
-
-## Installation
-
-```bash
-# Required Python packages
-pip install pandas numpy scipy
-
-# Optional for notebooks/visualization
-pip install matplotlib seaborn jupyter
-```
-
-## Quick Start
-
-### Run the Freight Calculator
-```bash
-python freight_calculator.py
-```
-
-### Run Portfolio Optimization
-```bash
-python portfolio_optimizer.py
-```
-
-## Key Results
-
-### Optimal Assignments (Cargill Vessels)
-
-| Vessel | Cargo | TCE ($/day) | Net Profit |
-|--------|-------|-------------|------------|
-| OCEAN HORIZON | EGA Bauxite (Guinea-China) | ~$30,879 | ~$1,265,746 |
-| ANN BELL | CSN Iron Ore (Brazil-China) | ~$23,390 | ~$1,018,508 |
-
-**Total Portfolio Profit: ~$2,284,255**
-
-### Critical Insight
-
-Only 2 of 4 Cargill vessels (ANN BELL and OCEAN HORIZON) can make any of the cargo laycans due to their current positions and ETD dates. The BHP Iron Ore cargo (tight laycan: 7-11 Mar) requires a market vessel.
-
-| Vessel | ETD | BHP (7-11 Mar) | EGA (2-10 Apr) | CSN (1-8 Apr) |
-|--------|-----|----------------|----------------|---------------|
-| ANN BELL | 25 Feb | CAN | CAN | CAN |
-| OCEAN HORIZON | 1 Mar | CAN | CAN | CANNOT |
-| PACIFIC GLORY | 10 Mar | CANNOT | CANNOT | CANNOT |
-| GOLDEN ASCENT | 8 Mar | CANNOT | CANNOT | CANNOT |
-
-### Scenario Analysis Findings
-
-1. **Bunker Price Sensitivity**: Recommendation changes only if bunker prices increase >82%
-2. **Port Delay Impact**: ~$30,000 profit loss per day of delay, but assignments remain stable
+The optimizer recommends deploying all 4 Cargill vessels on higher-margin market cargoes while hiring market vessels at competitive rates to fulfill committed cargo obligations.
 
 ---
 
-## Known Issues & Planned Fixes
+## Features
 
-### Distance Lookup System
+### Core Analytics
+- **Freight Calculator**: Full voyage economics including TCE, bunker costs, port costs, and net profit
+- **Portfolio Optimizer**: Hungarian algorithm optimization across Cargill + market vessels/cargoes
+- **Dual Speed Analysis**: Compares eco vs warranted speed for each voyage
+- **Bunker Optimization**: Identifies optimal bunkering ports along routes
 
-The current implementation has potential issues with port distance lookups that may affect voyage calculations.
+### Scenario Analysis
+- **Bunker Price Sensitivity**: Impact of ±50% fuel price changes on assignments
+- **Port Delay Sensitivity**: Effect of congestion delays on profitability
+- **Tipping Point Analysis**: Identifies when optimal assignments change
 
-#### Issue 1: Estimated vs CSV Distance Discrepancies
+### ML-Powered Insights
+- **Port Congestion Predictor**: Random Forest model predicting port delays
+- **Feature Engineering**: Day of week, seasonality, cargo type patterns
 
-The code uses hardcoded `estimated_distances` as fallback when CSV lookup fails. Some estimates are inaccurate:
+### Interactive Web Application
+- **Dashboard**: Real-time portfolio overview with KPIs and assignment matrix
+- **Voyages Explorer**: Compare all 144 vessel-cargo combinations
+- **Scenario Simulator**: Interactive what-if analysis
+- **AI Chat Assistant**: Claude-powered natural language queries
 
-| Route | Code Estimate | CSV Actual | Error |
-|-------|--------------|------------|-------|
-| CAOFEIDIAN → PORT HEDLAND | 4,200 nm | 3,788 nm | +412 nm (~1.4 days) |
-| GWANGYANG → PORT HEDLAND | 3,800 nm | 3,473 nm | +327 nm (~1.1 days) |
-| FANGCHENG → PORT HEDLAND | 3,700 nm | 2,843 nm | +857 nm (~2.9 days) |
+---
 
-**Impact**: Overestimated distances = longer calculated voyage times = incorrect laycan feasibility.
+## Project Structure
 
-#### Issue 2: Port Name Aliasing
+```
+cargillDatathon/
+├── api/                          # FastAPI Backend
+│   ├── main.py                   # API entry point
+│   ├── routes/                   # REST endpoints
+│   │   ├── portfolio.py          # Portfolio & vessel APIs
+│   │   ├── voyage.py             # Voyage calculation APIs
+│   │   ├── scenario.py           # Scenario analysis APIs
+│   │   ├── ml_routes.py          # ML prediction APIs
+│   │   └── chat.py               # AI chat endpoint
+│   └── services/
+│       ├── calculator_service.py # Pre-computed results cache
+│       └── chat_service.py       # Claude API integration
+│
+├── frontend/                     # React + Vite Frontend
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── dashboard/        # Portfolio dashboard
+│   │   │   ├── voyages/          # Voyage comparison table
+│   │   │   ├── scenarios/        # Sensitivity charts
+│   │   │   ├── ml/               # ML insights page
+│   │   │   └── chat/             # AI chat panel
+│   │   ├── api/                  # API client & React Query hooks
+│   │   └── types/                # TypeScript definitions
+│   └── package.json
+│
+├── src/                          # Core Python Analytics
+│   ├── freight_calculator.py     # Voyage economics engine
+│   ├── portfolio_optimizer.py    # Optimization algorithms
+│   └── ml/                       # Machine learning models
+│       ├── port_congestion_predictor.py
+│       └── feature_engineering.py
+│
+├── data/
+│   ├── Port_Distances.csv        # 15,000+ port-pair distances
+│   └── PortWatch_ports_database.csv
+│
+├── notebooks/
+│   ├── analysis.ipynb            # Exploratory analysis
+│   └── ml_training.ipynb         # Model training
+│
+├── start_dev.bat                 # Windows dev server script
+├── start_dev.sh                  # Unix dev server script
+└── requirements.txt              # Python dependencies
+```
 
-The CSV uses specific port name variants that may not match the code:
+---
 
-| Code Uses | CSV Has | Status |
-|-----------|---------|--------|
-| `GWANGYANG` | `GWANGYANG LNG TERMINAL` | Alias exists but may not match |
-| `KAMSAR ANCHORAGE` | `KAMSAR ANCHORAGE`, `PORT KAMSAR` | Multiple variants |
-| `QINGDAO` | `QINGDAO`, `DAGANG (QINGDAO)` | Alias exists |
+## Quick Start
 
-#### Issue 3: Missing Routes in CSV
+### Prerequisites
+- Python 3.10+ with Anaconda
+- Node.js 18+
+- Anthropic API key (optional, for AI chat)
 
-Routes not in the CSV that require estimates:
+### Installation
 
-- MAP TA PHUT → PORT HEDLAND (~2,800 nm)
-- MAP TA PHUT → KAMSAR ANCHORAGE (~9,500 nm)
-- MAP TA PHUT → ITAGUAI (~12,500 nm)
-- Various India port → load port combinations
+```bash
+# Clone the repository
+git clone https://github.com/sidreyli/cargillDatathon.git
+cd cargillDatathon
 
-### Planned Fix Strategy
+# Install Python dependencies
+pip install -r requirements.txt
 
-#### Phase 1: Improve CSV Lookup Priority
-1. Ensure CSV distances are always used when available
-2. Add logging when falling back to estimated distances
-3. Validate port name normalization logic
+# Install frontend dependencies
+cd frontend
+npm install
+cd ..
+```
 
-#### Phase 2: Correct Estimated Distances
-1. Cross-reference estimates against maritime distance calculators
-2. Remove estimates that exist in CSV (to force CSV lookup)
-3. Add validated estimates for truly missing routes
+### Running the Application
 
-#### Phase 3: Enhance Port Aliasing
-1. Build comprehensive alias map from CSV analysis
-2. Add fuzzy matching for port names with typos/variations
-3. Add validation warnings for unrecognized ports
+**Windows:**
+```bash
+start_dev.bat
+```
 
-#### Phase 4: Add Distance Validation
-1. Log source of each distance used (CSV vs estimate)
-2. Add unit tests comparing key routes
-3. Generate distance audit report
+**Unix/Mac:**
+```bash
+chmod +x start_dev.sh
+./start_dev.sh
+```
+
+**Manual:**
+```bash
+# Terminal 1: Backend
+conda activate base
+uvicorn api.main:app --reload --port 8000
+
+# Terminal 2: Frontend
+cd frontend
+npm run dev
+```
+
+### Access the Application
+- **Frontend**: http://localhost:5173
+- **API Docs**: http://localhost:8000/docs
+
+---
+
+## Key Results
+
+### Optimal Portfolio Assignment
+
+| Vessel (Cargill) | Assigned Cargo | TCE | Net Profit |
+|------------------|----------------|-----|------------|
+| ANN BELL | Vale Malaysia Iron Ore (Brazil-Malaysia) | $22,614/day | $915,509 |
+| OCEAN HORIZON | BHP Iron Ore (Australia-S.Korea) | $27,036/day | $350,978 |
+| PACIFIC GLORY | Teck Coking Coal (Canada-China) | $29,426/day | $708,408 |
+| GOLDEN ASCENT | Adaro Coal (Indonesia-India) | $35,181/day | $1,169,745 |
+
+### Market Vessel Hires (for Cargill Cargoes)
+
+| Hired Vessel | Cargo | Duration | TCE | Net Profit |
+|--------------|-------|----------|-----|------------|
+| IRON CENTURY | EGA Bauxite (Guinea-China) | 77.7 days | $38,782/day | $1,398,960 |
+| ATLANTIC FORTUNE | BHP Iron Ore (Australia-China) | 29.8 days | $18,052/day | $536,040 |
+| CORAL EMPEROR | CSN Iron Ore (Brazil-China) | 77.9 days | $31,375/day | $1,402,380 |
+
+### Portfolio Summary
+- **Total Profit**: $5,803,558
+- **Average TCE**: $28,924/day
+- **Cargill Fleet Utilization**: 100% (4/4 vessels deployed)
+- **All laycans met** using eco speed
+
+---
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/portfolio/optimize` | GET | Get optimal portfolio assignment |
+| `/api/portfolio/all-voyages` | GET | Get all 144 voyage combinations |
+| `/api/voyage/calculate` | POST | Calculate specific voyage economics |
+| `/api/scenario/bunker` | GET | Bunker price sensitivity analysis |
+| `/api/scenario/port-delay` | GET | Port delay sensitivity analysis |
+| `/api/ml/port-delays` | GET | ML-predicted port congestion |
+| `/api/chat` | POST | AI chat (streaming SSE) |
+| `/api/chat/sync` | POST | AI chat (non-streaming) |
+
+---
+
+## Environment Variables
+
+Create a `.env` file in the project root:
+
+```env
+ANTHROPIC_API_KEY=sk-ant-api03-your-key-here
+```
+
+The AI chat feature works without an API key (falls back to rule-based responses), but provides richer answers with Claude integration.
+
+---
+
+## Technology Stack
+
+### Backend
+- **FastAPI** - High-performance async Python API
+- **Uvicorn** - ASGI server
+- **Pandas/NumPy** - Data processing
+- **SciPy** - Hungarian algorithm optimization
+- **Scikit-learn** - ML models
+
+### Frontend
+- **React 18** - UI framework
+- **TypeScript** - Type safety
+- **Vite** - Build tool
+- **TailwindCSS** - Styling
+- **React Query** - Data fetching
+- **Recharts** - Visualizations
+- **Framer Motion** - Animations
+
+### AI Integration
+- **Claude API** - Natural language chat with tool calling
 
 ---
 
@@ -144,51 +224,37 @@ Routes not in the CSV that require estimates:
 ```
 TCE = (Net Freight - Voyage Costs) / Total Voyage Days
 
-Where:
-- Net Freight = Gross Freight × (1 - Commission)
-- Voyage Costs = Bunker Cost + Port Costs + Miscellaneous
+Net Freight = Gross Freight × (1 - Commission)
+Voyage Costs = Bunker Cost + Port Costs + Hire Cost + Misc
 ```
 
-### Voyage Duration
-```
-Total Days = Ballast Days + Laden Days + Loading Days + Discharge Days + Waiting Days
+### Portfolio Optimization
+1. Calculate economics for all vessel-cargo pairs (144 combinations)
+2. Filter to feasible assignments (can make laycan)
+3. Apply Hungarian algorithm to maximize total profit
+4. Recommend market vessel hires for unfulfilled cargoes
 
-Steaming Days = Distance (nm) / (Speed (kn) × 24)
-Port Days = Cargo Quantity / Handling Rate + Turn Time
-```
+### Bunker Optimization
+For each voyage, evaluates bunkering at:
+- Origin port
+- En-route ports (Fujairah, Singapore, Gibraltar, etc.)
+- Destination port
 
-### Laycan Feasibility
-```
-Arrival Date = ETD + Ballast Days
-Can Make Laycan = (Arrival Date <= Laycan End Date)
-```
+Selects the port with lowest total cost (price × quantity + deviation).
 
-## Assumptions
-
-| Parameter | Value | Rationale |
-|-----------|-------|-----------|
-| Speed Mode | Economical | Optimizes fuel consumption |
-| Bunker Prices | March 2026 forward curve | Per datathon data |
-| Misc Costs | $15,000/voyage | Industry standard |
-| Vessel Constants | 3,500 MT | Reserve for bunkers/stores |
-| Weather Buffer | Not included | Covered in scenario analysis |
+---
 
 ## Data Sources
 
-- **Port Distances**: `Port_Distances.csv` (~15,000 port pairs)
-- **Bunker Prices**: March 2026 forward curve from datathon briefing
-- **FFA Rates**: Baltic Exchange 5TC = $18,454/day (Mar 2026)
+- **Port Distances**: CSV with 15,000+ maritime routes
+- **Bunker Prices**: March 2026 forward curve
+- **FFA Rates**: Baltic Exchange 5TC = $18,454/day
+- **Port Data**: PortWatch database
 
 ---
 
 ## Team
 
-[Your Team Name]
+Sidharth Rajesh
+Makendra Prasad
 
-## Contact
-
-For questions about this solution, contact [your email].
-
----
-
-*Developed for the SMU-Cargill Ocean Transportation Datathon 2026*
