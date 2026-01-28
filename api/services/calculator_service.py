@@ -126,12 +126,29 @@ def _full_portfolio_to_dict(result: FullPortfolioResult, vessels_map: dict, carg
     # Market vessel assignments (hired to cover Cargill cargoes)
     market_hires = []
     for vessel_name, cargo_name, option in result.market_vessel_assignments:
-        market_hires.append({
+        hire_info = {
             "vessel": vessel_name,
             "cargo": cargo_name,
             "duration_days": round(option.voyage_days, 1),
             "recommended_hire_rate": round(option.recommended_hire_rate, 0),
-        })
+            "tce": round(option.tce, 0),
+            "net_profit": round(option.net_profit, 0),
+        }
+        # Include voyage details if available
+        if option.result:
+            hire_info.update({
+                "ballast_days": round(option.result.ballast_days, 1),
+                "laden_days": round(option.result.laden_days, 1),
+                "load_days": round(option.result.load_days, 1),
+                "discharge_days": round(option.result.discharge_days, 1),
+                "cargo_qty": int(option.result.cargo_quantity),
+                "gross_freight": round(option.result.gross_freight, 0),
+                "net_freight": round(option.result.net_freight, 0),
+                "total_bunker_cost": round(option.result.total_bunker_cost, 0),
+                "hire_cost": round(option.result.hire_cost, 0),
+                "port_costs": round(option.result.port_costs, 0),
+            })
+        market_hires.append(hire_info)
     
     return {
         "assignments": assignments,
@@ -229,11 +246,18 @@ class CalculatorService:
     def _compute_all_voyages(self):
         print("[CalculatorService] Computing all voyages...")
         voyages = []
-        for v in self.cargill_vessels:
-            for c in self.cargill_cargoes:
+        all_vessels = self.cargill_vessels + self.market_vessels
+        all_cargoes = self.cargill_cargoes + self.market_cargoes
+        
+        for v in all_vessels:
+            for c in all_cargoes:
                 try:
                     result = self.calculator.calculate_voyage(v, c, use_eco_speed=True)
-                    voyages.append(_voyage_to_dict(v, c, result, "eco"))
+                    voyage_dict = _voyage_to_dict(v, c, result, "eco")
+                    # Add vessel and cargo type info
+                    voyage_dict["vessel_type"] = "cargill" if v.is_cargill else "market"
+                    voyage_dict["cargo_type"] = "cargill" if c.is_cargill else "market"
+                    voyages.append(voyage_dict)
                 except Exception as e:
                     print(f"  Warning: {v.name} -> {c.name}: {e}")
         self._all_voyages_cache = voyages

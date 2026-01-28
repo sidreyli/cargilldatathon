@@ -311,6 +311,8 @@ export default function DashboardPage() {
                   cargo={h.cargo}
                   vesselType="market"
                   cargoType="cargill"
+                  profit={h.net_profit}
+                  tce={h.tce}
                   days={h.duration_days}
                   hireRate={h.recommended_hire_rate}
                   idx={i}
@@ -389,10 +391,12 @@ export default function DashboardPage() {
                     <td className="px-4 py-3 text-[#0B2545]">{cargoName}</td>
                     <td className="px-4 py-3 text-[#6B7B8D]">{route}</td>
                     <td className="px-4 py-3 text-right text-[#0B2545]">{Math.round(h.duration_days || 0)}d</td>
-                    <td className="px-4 py-3 text-right text-[#6B7B8D]">
-                      {h.recommended_hire_rate > 100 ? `$${h.recommended_hire_rate.toLocaleString()}` : '—'}
+                    <td className="px-4 py-3 text-right text-[#1B6CA8] font-medium">
+                      {h.tce ? `$${h.tce.toLocaleString()}` : (h.recommended_hire_rate > 100 ? `$${h.recommended_hire_rate.toLocaleString()}` : '—')}
                     </td>
-                    <td className="px-4 py-3 text-right text-[#6B7B8D]">—</td>
+                    <td className="px-4 py-3 text-right text-[#0FA67F] font-bold">
+                      {h.net_profit ? formatCurrency(h.net_profit) : '—'}
+                    </td>
                   </tr>
                 );
               })}

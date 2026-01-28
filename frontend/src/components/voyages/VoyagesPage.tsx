@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowUpDown, ArrowUp, ArrowDown, GitCompareArrows, X } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, GitCompareArrows, X, Loader2 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
@@ -13,9 +13,9 @@ type SortKey = 'vessel' | 'cargo' | 'tce' | 'net_profit' | 'total_days' | 'can_m
 type SortDir = 'asc' | 'desc';
 
 export default function VoyagesPage() {
-  const { data: apiVoyages } = useAllVoyages();
+  const { data: apiVoyages, isLoading: loadingVoyages, isFetching } = useAllVoyages();
   const { data: apiPortfolio } = usePortfolio();
-  const allVoyages = apiVoyages || mockAllVoyages;
+  const allVoyages = apiVoyages && apiVoyages.length > 0 ? apiVoyages : mockAllVoyages;
   const portfolio = apiPortfolio || mockPortfolio;
   const optSet = new Set(portfolio.assignments?.map((a: any) => `${a.vessel}|${a.cargo}`) || []);
   const [sortKey, setSortKey] = useState<SortKey>('tce');
@@ -37,7 +37,7 @@ export default function VoyagesPage() {
       return sortDir === 'asc' ? (va as number) - (vb as number) : (vb as number) - (va as number);
     });
     return arr;
-  }, [sortKey, sortDir]);
+  }, [allVoyages, sortKey, sortDir]);
 
   const selVoyages = allVoyages.filter(v => selected.includes(`${v.vessel}|${v.cargo}`));
 
@@ -63,12 +63,21 @@ export default function VoyagesPage() {
     Commission: v.commission_cost,
   }));
 
+  if (loadingVoyages) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-ocean-500" />
+        <span className="ml-3 text-text-secondary">Loading voyages...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5 max-w-[1280px]">
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
         <div className="bg-white rounded-xl border border-[#DCE3ED] shadow-card overflow-hidden">
           <div className="px-5 py-3 border-b border-border flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-navy-900">All Voyage Combinations</h3>
+            <h3 className="text-sm font-semibold text-navy-900">All Voyage Combinations ({allVoyages.length} total)</h3>
             {selected.length > 0 && (
               <button onClick={() => setSelected([])} className="text-xs text-text-secondary hover:text-coral-500 flex items-center gap-1">
                 <X className="w-3 h-3" /> Clear selection
@@ -93,10 +102,12 @@ export default function VoyagesPage() {
                   const key = `${v.vessel}|${v.cargo}`;
                   const isOpt = optSet.has(key);
                   const isSel = selected.includes(key);
+                  const isMarketVessel = v.vessel_type === 'market';
+                  const isMarketCargo = v.cargo_type === 'market';
                   return (
                     <tr
                       key={i}
-                      className={`border-b border-border/50 transition-colors cursor-pointer ${isSel ? 'bg-sky-100/40' : isOpt ? 'bg-teal-500/[0.04]' : 'hover:bg-cloud/60'}`}
+                      className={`border-b border-border/50 transition-colors cursor-pointer ${isSel ? 'bg-sky-100/40' : isOpt ? 'bg-teal-500/[0.04]' : isMarketVessel ? 'bg-amber-50/40' : 'hover:bg-cloud/60'}`}
                       onClick={() => {
                         setSelected(s => {
                           if (s.includes(key)) return s.filter(x => x !== key);
@@ -111,9 +122,18 @@ export default function VoyagesPage() {
                         </div>
                       </td>
                       <td className="px-3 py-2.5 font-medium text-navy-900">
-                        {v.vessel} {isOpt && <span className="text-[10px] text-teal-500 font-semibold ml-1">OPT</span>}
+                        <span className="flex items-center gap-1.5">
+                          {v.vessel}
+                          {isOpt && <span className="text-[10px] text-teal-500 font-semibold bg-teal-500/10 px-1.5 py-0.5 rounded">OPT</span>}
+                          {isMarketVessel && <span className="text-[10px] text-amber-600 font-semibold bg-amber-100 px-1.5 py-0.5 rounded">MKT</span>}
+                        </span>
                       </td>
-                      <td className="px-3 py-2.5 text-text-secondary">{v.cargo}</td>
+                      <td className="px-3 py-2.5 text-text-secondary">
+                        <span className="flex items-center gap-1.5">
+                          {v.cargo}
+                          {isMarketCargo && <span className="text-[10px] text-blue-600 font-semibold bg-blue-100 px-1.5 py-0.5 rounded">MKT</span>}
+                        </span>
+                      </td>
                       <td className="px-3 py-2.5 font-mono font-semibold" style={{ color: v.tce >= 25000 ? '#0FA67F' : v.tce >= 18000 ? '#1B6CA8' : '#F5A623' }}>
                         {formatCurrencyFull(v.tce)}
                       </td>

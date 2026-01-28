@@ -47,7 +47,10 @@ export function useAllVoyages() {
   return useQuery({
     queryKey: ['allVoyages'],
     queryFn: api.getAllVoyages,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0, // Always refetch
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 min
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
   });
 }
 
