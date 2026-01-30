@@ -113,23 +113,10 @@ cd ..
 
 ### Running the Application
 
-**Windows:**
-```bash
-start_dev.bat
-```
-
-**Unix/Mac:**
-```bash
-chmod +x start_dev.sh
-./start_dev.sh
-```
-
-**Manual:**
 ```bash
 # Terminal 1: Backend
-conda activate base
-uvicorn api.main:app --reload --port 80
-00
+conda activate cargill
+uvicorn api.main:app --reload --port 8000
 
 # Terminal 2: Frontend
 cd frontend
