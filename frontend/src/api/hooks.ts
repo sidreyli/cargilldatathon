@@ -17,11 +17,11 @@ export function useCargoes() {
   });
 }
 
-export function usePortfolio() {
+export function usePortfolio(useMLDelays: boolean = false) {
   return useQuery({
-    queryKey: ['portfolio'],
+    queryKey: ['portfolio', useMLDelays],
     queryFn: async () => {
-      const raw = await api.getPortfolio();
+      const raw = await api.getPortfolio(useMLDelays);
       // Handle both old format (single portfolio) and new format (list of portfolios)
       const portfolios = raw.portfolios || [raw];
 
@@ -47,10 +47,10 @@ export function usePortfolio() {
   });
 }
 
-export function useAllVoyages() {
+export function useAllVoyages(useMLDelays: boolean = false) {
   return useQuery({
-    queryKey: ['allVoyages'],
-    queryFn: api.getAllVoyages,
+    queryKey: ['allVoyages', useMLDelays],  // Include useMLDelays in cache key
+    queryFn: () => api.getAllVoyages(useMLDelays),
     staleTime: 5 * 60 * 1000, // 5 min - data is pre-computed at startup
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
@@ -91,32 +91,29 @@ export function useDelaySensitivity() {
   });
 }
 
+export function useChinaDelaySensitivity() {
+  return useQuery({
+    queryKey: ['chinaDelaySensitivity'],
+    queryFn: async () => {
+      const raw = await api.getChinaDelaySensitivity();
+      // Normalize: API returns port_delay_days, frontend expects parameter_value
+      return raw.map((d: any) => ({
+        parameter_value: d.port_delay_days,
+        total_profit: d.total_profit,
+        avg_tce: d.avg_tce,
+        assignments: d.assignments,
+      }));
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useTippingPoints() {
   return useQuery({
     queryKey: ['tippingPoints'],
     queryFn: async () => {
-      const raw = await api.getTippingPoints();
-      // Normalize: API returns { bunker: {...}, port_delay: {...} }
-      const points: any[] = [];
-      if (raw.bunker) {
-        points.push({
-          parameter: 'Bunker Price',
-          value: raw.bunker.multiplier,
-          description: raw.bunker.description || `At ${Math.round(raw.bunker.change_pct)}% increase, assignment changes occur.`,
-          profit_before: raw.bunker.profit_before || 0,
-          profit_after: raw.bunker.profit_after || 0,
-        });
-      }
-      if (raw.port_delay) {
-        points.push({
-          parameter: 'Port Delay',
-          value: raw.port_delay.days || raw.port_delay.value,
-          description: raw.port_delay.description || `At +${raw.port_delay.days || raw.port_delay.value} days delay, assignment changes occur.`,
-          profit_before: raw.port_delay.profit_before || 0,
-          profit_after: raw.port_delay.profit_after || 0,
-        });
-      }
-      return points.length > 0 ? points : null;
+      // Return raw API response with all fields including portfolio data
+      return await api.getTippingPoints();
     },
     staleTime: 5 * 60 * 1000,
   });

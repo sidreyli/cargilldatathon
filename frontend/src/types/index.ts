@@ -102,6 +102,35 @@ export interface TippingPoint {
   profit_after: number;
 }
 
+export interface AssignmentDetail {
+  vessel: string;
+  cargo: string;
+  profit: number;
+  tce: number;
+  vessel_type?: 'cargill' | 'market';
+  cargo_type?: 'cargill' | 'market';
+  hire_rate?: number;
+}
+
+export interface PortfolioDetails {
+  cargill_assignments: AssignmentDetail[];
+  market_hires: AssignmentDetail[];
+  unassigned_vessels: string[];
+  unassigned_cargoes: string[];
+  total_profit: number;
+  total_tce: number;
+  avg_tce: number;
+}
+
+export interface TippingPointExtended extends TippingPoint {
+  region?: string;
+  ports_affected?: string[];
+  current_best_assignments?: AssignmentDetail[];
+  next_best_assignments?: AssignmentDetail[];
+  portfolio_before?: PortfolioDetails;
+  portfolio_after?: PortfolioDetails;
+}
+
 export interface PortDelay {
   port: string;
   predicted_delay_days: number;

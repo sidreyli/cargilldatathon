@@ -164,12 +164,21 @@ function AssignmentCard({ vessel, cargo, vesselType, cargoType, profit, tce, day
   );
 }
 
-export default function DashboardPage() {
+interface DashboardPageProps {
+  useMLDelays?: boolean;
+}
+
+export default function DashboardPage({ useMLDelays = false }: DashboardPageProps) {
   // Portfolio rank selection (0 = best, 1 = second best, 2 = third best)
   const [selectedRank, setSelectedRank] = useState(0);
 
+  // Reset selectedRank when ML mode changes
+  useEffect(() => {
+    setSelectedRank(0);
+  }, [useMLDelays]);
+
   // Fetch from API
-  const { data: apiPortfolios, isLoading: loadingPortfolio } = usePortfolio();
+  const { data: apiPortfolios, isLoading: loadingPortfolio } = usePortfolio(useMLDelays);
   const { data: apiVessels } = useVessels();
   const { data: apiCargoes } = useCargoes();
 

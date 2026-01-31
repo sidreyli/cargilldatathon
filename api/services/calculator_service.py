@@ -200,10 +200,13 @@ class CalculatorService:
         self.cargoes_map: Dict[str, Cargo] = {}
 
         # Cached results
-        self._portfolio_cache: Optional[dict] = None
+        self._portfolio_cache: Optional[list] = None
+        self._portfolio_ml_cache: Optional[list] = None
         self._all_voyages_cache: Optional[List[dict]] = None
+        self._all_voyages_ml_cache: Optional[List[dict]] = None
         self._bunker_sensitivity_cache: Optional[List[dict]] = None
         self._delay_sensitivity_cache: Optional[List[dict]] = None
+        self._china_delay_sensitivity_cache: Optional[List[dict]] = None
         self._tipping_points_cache: Optional[dict] = None
         self._ml_delays_cache: Optional[List[dict]] = None
         self._model_info_cache: Optional[dict] = None
@@ -247,7 +250,9 @@ class CalculatorService:
 
         # Pre-compute
         self._compute_portfolio()
+        self._compute_portfolio_with_ml()
         self._compute_all_voyages()
+        self._compute_all_voyages_with_ml()
         self._compute_scenarios()
         self._load_model_info()
         self._compute_ml_delays()
@@ -272,13 +277,51 @@ class CalculatorService:
         ]
         logger.info("Portfolio computed in %.2fs (%d options)", time.perf_counter() - t, len(results))
 
+    def _compute_portfolio_with_ml(self):
+        """Compute portfolio using ML-predicted port delays."""
+        t = time.perf_counter()
+        logger.info("Computing optimal portfolio with ML port delays...")
+        try:
+            # Get ML port delays
+            ml_delays = get_ml_port_delays(self.cargill_cargoes)
+
+            # Extract delay values for optimizer
+            port_delays_dict = {}
+            for port, info in ml_delays.items():
+                delay = info.get("predicted_delay", info.get("predicted_delay_days", 0))
+                port_delays_dict[port] = delay
+
+            logger.info("ML port delays: %s", port_delays_dict)
+
+            # CRITICAL: Actually pass the delays to the optimizer
+            results = self.full_optimizer.optimize_full_portfolio(
+                cargill_vessels=self.cargill_vessels,
+                market_vessels=self.market_vessels,
+                cargill_cargoes=self.cargill_cargoes,
+                market_cargoes=self.market_cargoes,
+                target_tce=18000,
+                dual_speed_mode=True,
+                top_n=3,
+                port_delays=port_delays_dict,  # NEW - Pass the delays here
+            )
+
+            self._portfolio_ml_cache = [
+                _full_portfolio_to_dict(result, self.vessels_map, self.cargoes_map)
+                for result in results
+            ]
+            logger.info("ML Portfolio computed in %.2fs (%d options)",
+                       time.perf_counter() - t, len(results))
+        except Exception as e:
+            logger.error("ML Portfolio computation error: %s", e)
+            self._portfolio_ml_cache = self._portfolio_cache
+
     def _compute_all_voyages(self):
         t = time.perf_counter()
         logger.info("Computing all voyages...")
         voyages = []
         all_vessels = self.cargill_vessels + self.market_vessels
         all_cargoes = self.cargill_cargoes + self.market_cargoes
-        
+
         for v in all_vessels:
             for c in all_cargoes:
                 try:
@@ -293,35 +336,155 @@ class CalculatorService:
         self._all_voyages_cache = voyages
         logger.info("All voyages computed in %.2fs (%d combinations)", time.perf_counter() - t, len(voyages))
 
+    def _compute_all_voyages_with_ml(self):
+        """Compute all voyages with ML port delays."""
+        t = time.perf_counter()
+        logger.info("Computing all voyages with ML port delays...")
+        try:
+            # Get ML port delays
+            ml_delays = get_ml_port_delays(self.cargill_cargoes)
+            port_delays_dict = {
+                port: info.get("predicted_delay", info.get("predicted_delay_days", 0))
+                for port, info in ml_delays.items()
+            }
+
+            voyages = []
+            all_vessels = self.cargill_vessels + self.market_vessels
+            all_cargoes = self.cargill_cargoes + self.market_cargoes
+
+            for v in all_vessels:
+                for c in all_cargoes:
+                    try:
+                        # Determine port-specific delay
+                        delay = 0.0
+                        port_name = c.discharge_port.upper()
+                        for key, value in port_delays_dict.items():
+                            if key.upper() in port_name or port_name in key.upper():
+                                delay = value
+                                break
+
+                        result = self.calculator.calculate_voyage(
+                            v, c, use_eco_speed=True, extra_port_delay_days=delay
+                        )
+                        voyage_dict = _voyage_to_dict(v, c, result, "eco")
+                        voyage_dict["vessel_type"] = "cargill" if v.is_cargill else "market"
+                        voyage_dict["cargo_type"] = "cargill" if c.is_cargill else "market"
+                        voyages.append(voyage_dict)
+                    except Exception as e:
+                        logger.warning("ML Voyage calc failed: %s -> %s: %s", v.name, c.name, e)
+
+            self._all_voyages_ml_cache = voyages
+            logger.info("All ML voyages computed in %.2fs (%d combinations)",
+                       time.perf_counter() - t, len(voyages))
+        except Exception as e:
+            logger.error("ML voyages error: %s", e)
+            self._all_voyages_ml_cache = self._all_voyages_cache
+
     def _compute_scenarios(self):
         t = time.perf_counter()
         logger.info("Computing scenarios...")
-        # Bunker sensitivity
+
+        # Bunker sensitivity - use FULL portfolio optimizer for accurate ~5.8M profit
         try:
-            df = self.scenario_analyzer.analyze_bunker_sensitivity(
-                self.cargill_vessels, self.cargill_cargoes,
-                price_range=(0.8, 1.5), steps=15,
-            )
-            self._bunker_sensitivity_cache = df.to_dict(orient="records")
+            logger.info("Computing bunker sensitivity with full portfolio optimizer...")
+            bunker_results = []
+            import numpy as np
+            for mult in np.linspace(0.8, 1.5, 15):
+                results = self.full_optimizer.optimize_full_portfolio(
+                    cargill_vessels=self.cargill_vessels,
+                    market_vessels=self.market_vessels,
+                    cargill_cargoes=self.cargill_cargoes,
+                    market_cargoes=self.market_cargoes,
+                    target_tce=18000,
+                    dual_speed_mode=True,
+                    top_n=1,
+                    bunker_adjustment=mult,
+                )
+                portfolio = results[0]
+                # Get assignment summary
+                assignments = []
+                for v, c, opt in portfolio.cargill_vessel_assignments:
+                    assignments.append(f"{v}->{c[:15]}")
+                for v, c, opt in portfolio.market_vessel_assignments:
+                    assignments.append(f"{v}->{c[:15]}")
+
+                bunker_results.append({
+                    'bunker_multiplier': round(mult, 2),
+                    'bunker_change_pct': round((mult - 1) * 100, 1),
+                    'total_profit': round(portfolio.total_profit, 0),
+                    'avg_tce': round(portfolio.avg_tce, 0),
+                    'n_assignments': len(portfolio.cargill_vessel_assignments) + len(portfolio.market_vessel_assignments),
+                    'assignments': ', '.join(assignments),
+                })
+            self._bunker_sensitivity_cache = bunker_results
+            logger.info("Bunker sensitivity computed: %d points, baseline profit $%.0f",
+                       len(bunker_results), bunker_results[4]['total_profit'] if len(bunker_results) > 4 else 0)
         except Exception as e:
             logger.error("Bunker sensitivity error: %s", e)
             self._bunker_sensitivity_cache = []
 
-        # Port delay sensitivity
-        try:
-            df = self.scenario_analyzer.analyze_port_delay_sensitivity(
-                self.cargill_vessels, self.cargill_cargoes,
-                max_delay_days=15,
-            )
-            self._delay_sensitivity_cache = df.to_dict(orient="records")
-        except Exception as e:
-            logger.error("Delay sensitivity error: %s", e)
-            self._delay_sensitivity_cache = []
+        # Port delay sensitivity (removed - general port delays not used)
+        self._delay_sensitivity_cache = []
 
-        # Tipping points
+        # China port delay sensitivity - use FULL portfolio optimizer
+        try:
+            logger.info("Computing China delay sensitivity with full portfolio optimizer...")
+            china_results = []
+            CHINA_PORTS = ['QINGDAO', 'RIZHAO', 'CAOFEIDIAN', 'FANGCHENG',
+                          'LIANYUNGANG', 'SHANGHAI', 'TIANJIN', 'DALIAN']
+
+            delay_days = 0.0
+            while delay_days <= 15:
+                # Build port delays dict with only China ports having delays
+                port_delays = {port: delay_days for port in CHINA_PORTS}
+
+                results = self.full_optimizer.optimize_full_portfolio(
+                    cargill_vessels=self.cargill_vessels,
+                    market_vessels=self.market_vessels,
+                    cargill_cargoes=self.cargill_cargoes,
+                    market_cargoes=self.market_cargoes,
+                    target_tce=18000,
+                    dual_speed_mode=True,
+                    top_n=1,
+                    port_delays=port_delays,
+                )
+                portfolio = results[0]
+
+                # Get assignment summary
+                assignments = []
+                for v, c, opt in portfolio.cargill_vessel_assignments:
+                    assignments.append(f"{v}->{c[:15]}")
+                for v, c, opt in portfolio.market_vessel_assignments:
+                    assignments.append(f"{v}->{c[:15]}")
+
+                china_results.append({
+                    'port_delay_days': delay_days,
+                    'total_profit': round(portfolio.total_profit, 0),
+                    'avg_tce': round(portfolio.avg_tce, 0),
+                    'n_assignments': len(portfolio.cargill_vessel_assignments) + len(portfolio.market_vessel_assignments),
+                    'assignments': ', '.join(assignments),
+                    'unassigned_cargoes': ', '.join(portfolio.unassigned_cargill_cargoes),
+                })
+
+                delay_days += 0.5
+
+            self._china_delay_sensitivity_cache = china_results
+            logger.info("China delay sensitivity computed: %d points, baseline profit $%.0f",
+                       len(china_results), china_results[0]['total_profit'] if china_results else 0)
+        except Exception as e:
+            logger.error("China delay sensitivity error: %s", e)
+            self._china_delay_sensitivity_cache = []
+
+        # Tipping points with FULL portfolio
         try:
             tp = self.scenario_analyzer.find_tipping_points(
-                self.cargill_vessels, self.cargill_cargoes,
+                self.cargill_vessels,
+                self.cargill_cargoes,
+                max_bunker_increase_pct=100,
+                max_port_delay_days=60,  # Extended range to find true tipping points
+                full_optimizer=self.full_optimizer,
+                market_vessels=self.market_vessels,
+                market_cargoes=self.market_cargoes,
             )
             self._tipping_points_cache = tp
         except Exception as e:
@@ -397,15 +560,21 @@ class CalculatorService:
             for c in self.cargill_cargoes
         ]
 
-    def get_portfolio(self) -> dict:
-        portfolios = self._portfolio_cache or []
+    def get_portfolio(self, use_ml_delays: bool = False) -> dict:
+        if use_ml_delays:
+            portfolios = self._portfolio_ml_cache or self._portfolio_cache or []
+        else:
+            portfolios = self._portfolio_cache or []
         return {
             "portfolios": portfolios,
             "best": portfolios[0] if portfolios else None,
         }
 
-    def get_all_voyages(self) -> List[dict]:
-        return self._all_voyages_cache or []
+    def get_all_voyages(self, use_ml_delays: bool = False) -> List[dict]:
+        if use_ml_delays:
+            return self._all_voyages_ml_cache or self._all_voyages_cache or []
+        else:
+            return self._all_voyages_cache or []
 
     def calculate_voyage(self, vessel_name: str, cargo_name: str,
                          use_eco: bool = True, delay: float = 0,
@@ -426,6 +595,9 @@ class CalculatorService:
 
     def get_delay_sensitivity(self) -> List[dict]:
         return self._delay_sensitivity_cache or []
+
+    def get_china_delay_sensitivity(self) -> List[dict]:
+        return self._china_delay_sensitivity_cache or []
 
     def get_tipping_points(self) -> dict:
         return self._tipping_points_cache or {}

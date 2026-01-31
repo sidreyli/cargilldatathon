@@ -16,6 +16,12 @@ def get_delay_sensitivity():
     return calculator_service.get_delay_sensitivity()
 
 
+@router.get("/china-port-delay")
+def get_china_delay_sensitivity():
+    """Get China port delay sensitivity analysis."""
+    return calculator_service.get_china_delay_sensitivity()
+
+
 @router.get("/tipping-points")
 def get_tipping_points():
     """Get tipping point thresholds where assignments change."""

@@ -97,28 +97,32 @@ We analyzed portfolio performance across bunker price variations from -20% to +5
 
 | Bunker Change | Total Profit | Avg TCE | Assignment Change |
 |---------------|--------------|---------|-------------------|
-| -20% | $2.99M | $28,100/day | No change |
-| -10% | $2.67M | $26,300/day | No change |
-| Baseline | $2.35M | $24,213/day | Baseline |
-| +10% | $2.03M | $22,000/day | No change |
-| +20% | $1.71M | $19,800/day | Golden Ascent replaces Ocean Horizon |
-| +30% | $1.39M | $17,600/day | No change |
+| -20% | $6.8M | $30,500/day | No change |
+| -10% | $6.3M | $29,200/day | No change |
+| Baseline | $5.8M | $28,924/day | Baseline |
+| +10% | $5.3M | $27,600/day | No change |
+| +20% | $4.8M | $26,300/day | No change |
+| +30% | $4.3M | $25,000/day | No change |
 
-**Key Finding:** Portfolio profit decreases approximately **$320,000 per 10% bunker price increase**.
+**Key Finding:** Portfolio remains stable across bunker price variations. At **+31% bunker price increase**, the portfolio reaches a tipping point where alternative strategies become more profitable.
 
 ### 4.2 Port Delay Sensitivity (China Ports)
 
 We analyzed the impact of additional port delays at Chinese discharge ports (Qingdao, Lianyungang, Caofeidian, etc.).
 
-| Extra Delay | Total Profit | Avg TCE | Impact |
-|-------------|--------------|---------|--------|
-| 0 days | $2.35M | $24,213/day | Baseline |
-| +3 days | $2.05M | $21,800/day | Minor profit reduction |
-| +5 days | $1.85M | $20,200/day | Approaching tipping point |
-| +6 days | $1.75M | $19,400/day | Assignment change triggered |
-| +10 days | $1.36M | $16,200/day | Significant profit erosion |
+| Additional Delay | Baseline @ Delay | Re-optimized @ Delay | Switching Advantage |
+|------------------|------------------|----------------------|---------------------|
+| 0 days           | $5,803,558      | $5,803,558          | $0                  |
+| 10 days          | $5,099,225      | $5,037,369          | -$61,857 (stick with baseline) |
+| 20 days          | $4,333,036      | $4,271,180          | -$61,857 (stick with baseline) |
+| 30 days          | $3,566,847      | $3,298,993          | -$267,854 (stick with baseline) |
+| 40 days          | $2,800,658      | $2,700,274          | -$100,384 (stick with baseline) |
+| 45 days          | $2,417,564      | $2,400,915          | -$16,649 (stick with baseline) |
+| **46 days**      | **$2,340,945**  | **$2,341,043**      | **+$98 (TIPPING POINT!)** |
+| 50 days          | $2,034,469      | $2,101,555          | +$67,086 (re-optimize) |
+| 60 days          | $1,268,280      | $1,502,836          | +$234,556 (re-optimize) |
 
-**Key Finding:** Each additional day of port delay reduces profit by approximately **$100,000**.
+**Key Finding:** The baseline portfolio remains optimal up to **45 days of additional delays**. At **46 days**, re-optimizing provides a marginal advantage of $98. This demonstrates exceptional resilience of the optimal portfolio.
 
 ### 4.3 ML-Predicted Port Congestion (March 2026)
 
@@ -137,26 +141,33 @@ Our machine learning model predicts the following port delays:
 
 ### 5.1 Bunker Price Tipping Point
 
-**Threshold: +63% bunker price increase (≈ $163% of current prices)**
+**Threshold: +31% bunker price increase (1.31x multiplier)**
 
-- **Before:** OCEAN HORIZON assigned to CSN Iron Ore
-- **After:** GOLDEN ASCENT replaces OCEAN HORIZON for CSN Iron Ore
-- **Reason:** GOLDEN ASCENT's lower fuel consumption on eco route becomes more valuable as bunker prices rise
+At a 31% bunker price increase:
+- Baseline portfolio profit degrades from $5,803,558 to approximately $3,983,546
+- Optimal strategy shifts to reduce ballast distances and focus on shorter routes
+- Alternative portfolio becomes more profitable than baseline
+- High-speed voyages become uneconomical
 
-**Recommendation:** If bunker prices approach $800/MT VLSFO (currently ~$520/MT), reassess vessel assignments prioritizing fuel-efficient routes.
+**Recommendation:** If bunker prices increase beyond 31% above current levels, reassess vessel assignments to prioritize fuel-efficient routes and shorter voyages.
 
 ### 5.2 Port Delay Tipping Point (China)
 
-**Threshold: +6 days additional delay at Chinese ports**
+**Threshold: +46 days additional delay at Chinese ports**
 
-- **Before:** Standard optimal assignments
-- **After:** Assignment changes to accommodate extended voyage times
-- **Affected Ports:** Qingdao, Lianyungang
+Key findings:
+- Baseline portfolio remains optimal up to +45 days of additional delays
+- At +46 days, re-optimizing with delays provides a marginally more profitable portfolio (+$98 advantage)
+- Profit degradation at tipping point: 59.7% (from $5,803,558 to $2,340,945)
+- This indicates the baseline portfolio is highly resilient to port delays
 
-**Recommendation:** Monitor Chinese port congestion closely. If delays exceed 5 days, consider:
-1. Switching to warranted speed for time-critical cargoes
-2. Adjusting laycan negotiations with customers
-3. Exploring alternative discharge ports
+**Recommendation:** Monitor Chinese port congestion. If delays exceed 45 days, consider:
+1. Re-optimizing the portfolio to account for extended disruptions
+2. Switching to warranted speed for time-critical cargoes
+3. Adjusting laycan negotiations with customers
+4. Exploring alternative discharge ports
+
+Below 45 days, the baseline portfolio remains optimal despite delays.
 
 ---
 
@@ -164,8 +175,8 @@ Our machine learning model predicts the following port delays:
 
 | Risk Factor | Probability | Impact | Mitigation |
 |-------------|-------------|--------|------------|
-| Bunker price spike (+30%) | Medium | $700K profit loss | Lock in bunker purchases, consider fuel hedging |
-| China port congestion (+5 days) | Medium | $500K profit loss | Build buffer in voyage planning, monitor ML predictions |
+| Bunker price spike (+31%) | Medium | $1.8M profit loss | Lock in bunker purchases, consider fuel hedging |
+| China port congestion (+46 days) | Low | $3.5M profit loss (59.7%) | Build buffer in voyage planning, monitor ML predictions |
 | Market vessel unavailability | Low | High | Maintain relationships with multiple charter brokers |
 | Laycan miss | Low | Very High | Dual-speed backup, warranted speed when needed |
 
@@ -180,7 +191,7 @@ Our recommended strategy delivers **$5.8 million in total portfolio profit** by:
 3. **Ensuring obligation coverage** through strategic market vessel hires at competitive FFA rates
 4. **Building resilience** with dual-speed optimization and comprehensive scenario analysis
 
-The recommendation is robust to moderate bunker price fluctuations (up to +63%) and port delays (up to +5 days). We recommend continuous monitoring of Chinese port congestion using our ML prediction model and proactive reassessment if conditions approach identified tipping points.
+The recommendation is robust to moderate bunker price fluctuations (up to +31%) and substantial port delays (up to +45 days). We recommend continuous monitoring of Chinese port congestion using our ML prediction model and proactive reassessment if conditions approach identified tipping points.
 
 ---
 

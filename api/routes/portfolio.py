@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from ..services.calculator_service import calculator_service
 
 router = APIRouter(prefix="/api", tags=["portfolio"])
@@ -17,12 +17,20 @@ def get_cargoes():
 
 
 @router.get("/portfolio/optimize")
-def optimize_portfolio():
-    """Get cached optimal vessel-cargo assignments."""
-    return calculator_service.get_portfolio()
+def optimize_portfolio(use_ml_delays: bool = Query(False)):
+    """Get cached optimal vessel-cargo assignments.
+
+    Args:
+        use_ml_delays: If True, use ML-predicted port delays for optimization.
+    """
+    return calculator_service.get_portfolio(use_ml_delays=use_ml_delays)
 
 
 @router.get("/portfolio/all-voyages")
-def get_all_voyages():
-    """Get all voyage combinations with economics."""
-    return calculator_service.get_all_voyages()
+def get_all_voyages(use_ml_delays: bool = Query(False)):
+    """Get all voyage combinations with economics.
+
+    Args:
+        use_ml_delays: If True, use ML-predicted port delays for calculations.
+    """
+    return calculator_service.get_all_voyages(use_ml_delays=use_ml_delays)

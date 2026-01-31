@@ -1,27 +1,44 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Fuel, Clock, AlertTriangle, TrendingDown } from 'lucide-react';
+import { Fuel, Clock, AlertTriangle, TrendingDown, ArrowRight, TrendingUp } from 'lucide-react';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  ReferenceLine, Area, ComposedChart,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  ReferenceLine, Area, ComposedChart, Line,
 } from 'recharts';
 import Plot from 'react-plotly.js';
 import {
   mockBunkerSensitivity, mockPortDelaySensitivity, mockTippingPoints,
+  mockTippingPointsExtended, mockChinaDelaySensitivity, mockChinaTippingPoint,
+  CHINA_PORTS,
 } from '../../data/mockData';
-import { useBunkerSensitivity, useDelaySensitivity, useTippingPoints } from '../../api/hooks';
+import { useBunkerSensitivity, useDelaySensitivity, useChinaDelaySensitivity, useTippingPoints } from '../../api/hooks';
 import { formatCurrency, formatCurrencyFull } from '../../utils/formatters';
+import type { TippingPointExtended, AssignmentDetail } from '../../types';
+import ExpandableTippingPointCard from './ExpandableTippingPointCard';
 
 export default function ScenariosPage() {
-  const { data: apiBunker } = useBunkerSensitivity();
-  const { data: apiDelay } = useDelaySensitivity();
-  const { data: apiTipping } = useTippingPoints();
+  const { data: apiBunker, isLoading: bunkerLoading } = useBunkerSensitivity();
+  const { data: apiChinaDelay, isLoading: chinaDelayLoading } = useChinaDelaySensitivity();
+  const { data: apiTipping, isLoading: tippingLoading } = useTippingPoints();
   const bunkerSensitivity = apiBunker || mockBunkerSensitivity;
-  const delaySensitivity = apiDelay || mockPortDelaySensitivity;
+  const chinadelaySensitivity = apiChinaDelay || mockChinaDelaySensitivity;
   const tippingPoints = apiTipping || mockTippingPoints;
 
   const [bunkerMult, setBunkerMult] = useState(1.0);
-  const [delayDays, setDelayDays] = useState(0);
+  const [chinaDelayDays, setChinaDelayDays] = useState(0);
+
+  // Show loading or error state if data is not available
+  if (!bunkerSensitivity || bunkerSensitivity.length === 0 ||
+      !chinadelaySensitivity || chinadelaySensitivity.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-ocean-500 mx-auto mb-4"></div>
+          <p className="text-text-secondary">Loading scenario data...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Interpolate values from sensitivity data
   const interpBunker = (mult: number) => {
@@ -38,10 +55,11 @@ export default function ScenariosPage() {
     };
   };
 
-  const interpDelay = (days: number) => {
-    const d = delaySensitivity;
+  const interpChinaDelay = (days: number) => {
+    const d = chinadelaySensitivity;
     const idx = d.findIndex(p => p.parameter_value >= days);
     if (idx <= 0) return d[0];
+    if (idx >= d.length) return d[d.length - 1];
     const prev = d[idx - 1], next = d[idx];
     const t = (days - prev.parameter_value) / (next.parameter_value - prev.parameter_value);
     return {
@@ -53,154 +71,218 @@ export default function ScenariosPage() {
   };
 
   const bCurrent = interpBunker(bunkerMult);
-  const dCurrent = interpDelay(delayDays);
+  const chinaCurrent = interpChinaDelay(chinaDelayDays);
 
-  // 2D heatmap data: bunker x delay -> profit
+  // 2D heatmap data: bunker x china delay -> profit
   const bunkerRange = [0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5];
-  const delayRange = [0, 2, 4, 6, 8, 10, 12, 15];
-  const heatZ = bunkerRange.map(b => delayRange.map(d => {
+  const chinaDelayRange = [0, 2, 4, 6, 8, 10, 12, 15];
+  const baseProfit = bunkerSensitivity.find(p => p.parameter_value === 1.0)?.total_profit || bunkerSensitivity[0]?.total_profit || 5803558;
+  const heatZ = bunkerRange.map(b => chinaDelayRange.map(d => {
     const bp = interpBunker(b);
-    const dp = interpDelay(d);
-    const base = bunkerSensitivity.find(p => p.parameter_value === 1.0)!.total_profit;
-    const bRatio = bp.total_profit / base;
-    const dRatio = dp.total_profit / base;
-    return Math.round(base * bRatio * dRatio / base);
+    const dp = interpChinaDelay(d);
+    const bRatio = bp.total_profit / baseProfit;
+    const dRatio = dp.total_profit / baseProfit;
+    return Math.round(baseProfit * bRatio * dRatio / baseProfit);
   }));
+
+  // Get tipping points from API or fallback to mock
+  const bunkerTippingPoint = apiTipping?.bunker || mockTippingPointsExtended.bunker;
+  const chinaTippingPointRaw = apiTipping?.china_delay || mockChinaTippingPoint;
+
+  // Map china_delay fields to match the component's expected interface
+  const chinaTippingPoint = chinaTippingPointRaw ? {
+    parameter: chinaTippingPointRaw.parameter || 'Port Delay (China)',
+    value: chinaTippingPointRaw.value || 46,
+    description: chinaTippingPointRaw.description || 'Tipping point for China port delays',
+    profit_before: chinaTippingPointRaw.baseline_profit_no_delay || chinaTippingPointRaw.profit_before || 5803558,
+    profit_after: chinaTippingPointRaw.baseline_profit_with_delay || chinaTippingPointRaw.profit_after || 2340945,
+    portfolio_before: chinaTippingPointRaw.portfolio_baseline || chinaTippingPointRaw.portfolio_before,
+    portfolio_after: chinaTippingPointRaw.portfolio_alternative || chinaTippingPointRaw.portfolio_after,
+    ports_affected: chinaTippingPointRaw.ports_affected || [],
+  } : mockChinaTippingPoint;
 
   return (
     <div className="space-y-5 max-w-[1280px]">
-      {/* Slider controls */}
+      {/* Split View: Bunker (Left) | China Delay (Right) */}
       <div className="grid grid-cols-2 gap-5">
-        {/* Bunker slider */}
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-          className="bg-white rounded-xl border border-[#DCE3ED] shadow-card p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Fuel className="w-4 h-4 text-ocean-500" />
-            <h3 className="text-sm font-semibold text-navy-900">Bunker Price Sensitivity</h3>
-          </div>
-          <div className="flex items-center gap-4 mb-2">
-            <input type="range" min={80} max={150} step={1} value={bunkerMult * 100}
-              onChange={e => setBunkerMult(Number(e.target.value) / 100)}
-              className="flex-1 h-2 rounded-lg appearance-none bg-sky-100 accent-ocean-500" />
-            <span className="text-lg font-bold text-navy-900 w-16 text-right font-mono">{Math.round(bunkerMult * 100)}%</span>
-          </div>
-          <div className="flex justify-between text-[10px] text-text-secondary mb-4"><span>80%</span><span>100%</span><span>150%</span></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-cloud rounded-lg p-3">
-              <p className="text-[10px] text-text-secondary uppercase tracking-wide">Profit</p>
-              <p className={`text-lg font-bold font-mono ${bCurrent.total_profit < 1000000 ? 'text-coral-500' : 'text-teal-500'}`}>
-                {formatCurrency(bCurrent.total_profit)}
-              </p>
+        {/* LEFT COLUMN - BUNKER PRICE SENSITIVITY */}
+        <div className="space-y-5">
+          {/* Bunker Price Slider */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
+            className="bg-white rounded-xl border border-[#DCE3ED] shadow-card p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Fuel className="w-4 h-4 text-ocean-500" />
+              <h3 className="text-sm font-semibold text-navy-900">Bunker Price Sensitivity</h3>
             </div>
-            <div className="bg-cloud rounded-lg p-3">
-              <p className="text-[10px] text-text-secondary uppercase tracking-wide">Avg TCE</p>
-              <p className="text-lg font-bold font-mono text-ocean-600">{formatCurrencyFull(bCurrent.avg_tce)}/d</p>
+            <div className="flex items-center gap-4 mb-2">
+              <input type="range" min={80} max={150} step={1} value={bunkerMult * 100}
+                onChange={e => setBunkerMult(Number(e.target.value) / 100)}
+                className="flex-1 h-2 rounded-lg appearance-none bg-sky-100 accent-ocean-500" />
+              <span className="text-lg font-bold text-navy-900 w-16 text-right font-mono">{Math.round(bunkerMult * 100)}%</span>
             </div>
-          </div>
-        </motion.div>
-
-        {/* Port delay slider */}
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-          className="bg-white rounded-xl border border-[#DCE3ED] shadow-card p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Clock className="w-4 h-4 text-ocean-500" />
-            <h3 className="text-sm font-semibold text-navy-900">Port Delay Sensitivity</h3>
-          </div>
-          <div className="flex items-center gap-4 mb-2">
-            <input type="range" min={0} max={15} step={0.5} value={delayDays}
-              onChange={e => setDelayDays(Number(e.target.value))}
-              className="flex-1 h-2 rounded-lg appearance-none bg-sky-100 accent-ocean-500" />
-            <span className="text-lg font-bold text-navy-900 w-16 text-right font-mono">+{delayDays}d</span>
-          </div>
-          <div className="flex justify-between text-[10px] text-text-secondary mb-4"><span>0 days</span><span>7.5</span><span>15 days</span></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-cloud rounded-lg p-3">
-              <p className="text-[10px] text-text-secondary uppercase tracking-wide">Profit</p>
-              <p className={`text-lg font-bold font-mono ${dCurrent.total_profit < 1000000 ? 'text-coral-500' : 'text-teal-500'}`}>
-                {formatCurrency(dCurrent.total_profit)}
-              </p>
-            </div>
-            <div className="bg-cloud rounded-lg p-3">
-              <p className="text-[10px] text-text-secondary uppercase tracking-wide">Avg TCE</p>
-              <p className="text-lg font-bold font-mono text-ocean-600">{formatCurrencyFull(dCurrent.avg_tce)}/d</p>
-            </div>
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Line charts */}
-      <div className="grid grid-cols-2 gap-5">
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-          className="bg-white rounded-xl border border-[#DCE3ED] shadow-card p-5">
-          <h3 className="text-sm font-semibold text-navy-900 mb-3">Profit vs Bunker Price</h3>
-          <ResponsiveContainer width="100%" height={240}>
-            <ComposedChart data={bunkerSensitivity}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#DCE3ED" />
-              <XAxis dataKey="parameter_value" tickFormatter={(v: number) => `${Math.round(v * 100)}%`} tick={{ fontSize: 10, fill: '#6B7B8D' }} />
-              <YAxis tickFormatter={(v: number) => formatCurrency(v)} tick={{ fontSize: 10, fill: '#6B7B8D' }} />
-              <Tooltip formatter={(v: number) => formatCurrencyFull(v)} labelFormatter={(l: number) => `${Math.round(l * 100)}% of base`} />
-              <Area dataKey="total_profit" fill="#D6EAF8" stroke="none" fillOpacity={0.5} />
-              <Line dataKey="total_profit" stroke="#1B6CA8" strokeWidth={2.5} dot={false} name="Profit" />
-              <ReferenceLine x={1.18} stroke="#E74C5E" strokeDasharray="4 4" label={{ value: 'Tipping', position: 'top', fontSize: 9, fill: '#E74C5E' }} />
-              <ReferenceLine x={bunkerMult} stroke="#0B2545" strokeWidth={2} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-          className="bg-white rounded-xl border border-[#DCE3ED] shadow-card p-5">
-          <h3 className="text-sm font-semibold text-navy-900 mb-3">Profit vs Port Delay</h3>
-          <ResponsiveContainer width="100%" height={240}>
-            <ComposedChart data={delaySensitivity}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#DCE3ED" />
-              <XAxis dataKey="parameter_value" tickFormatter={(v: number) => `+${v}d`} tick={{ fontSize: 10, fill: '#6B7B8D' }} />
-              <YAxis tickFormatter={(v: number) => formatCurrency(v)} tick={{ fontSize: 10, fill: '#6B7B8D' }} />
-              <Tooltip formatter={(v: number) => formatCurrencyFull(v)} labelFormatter={(l: number) => `+${l} days delay`} />
-              <Area dataKey="total_profit" fill="#D6EAF8" stroke="none" fillOpacity={0.5} />
-              <Line dataKey="total_profit" stroke="#134074" strokeWidth={2.5} dot={false} name="Profit" />
-              <ReferenceLine x={5.5} stroke="#E74C5E" strokeDasharray="4 4" label={{ value: 'Tipping', position: 'top', fontSize: 9, fill: '#E74C5E' }} />
-              <ReferenceLine x={delayDays} stroke="#0B2545" strokeWidth={2} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </motion.div>
-      </div>
-
-      {/* Tipping point cards */}
-      <div className="grid grid-cols-2 gap-5">
-        {tippingPoints.map((tp, i) => (
-          <motion.div key={tp.parameter} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 + i * 0.05 }}
-            className="bg-white rounded-xl border border-[#DCE3ED] shadow-card p-5 relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-amber-500 to-coral-500" />
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
-                {tp.parameter === 'Bunker Price' ? <Fuel className="w-4 h-4 text-amber-500" /> : <AlertTriangle className="w-4 h-4 text-amber-500" />}
+            <div className="flex justify-between text-[10px] text-text-secondary mb-4"><span>80%</span><span>100%</span><span>150%</span></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-cloud rounded-lg p-3">
+                <p className="text-[10px] text-text-secondary uppercase tracking-wide">Profit</p>
+                <p className={`text-lg font-bold font-mono ${bCurrent.total_profit < 1000000 ? 'text-coral-500' : 'text-teal-500'}`}>
+                  {formatCurrency(bCurrent.total_profit)}
+                </p>
               </div>
-              <div>
-                <p className="text-xs font-semibold text-navy-900 mb-1">{tp.parameter} Tipping Point: <span className="text-coral-500">{tp.parameter === 'Bunker Price' ? `${Math.round(tp.value * 100)}%` : `+${tp.value}d`}</span></p>
-                <p className="text-xs text-text-secondary leading-relaxed">{tp.description}</p>
-                <div className="flex gap-4 mt-2 text-[11px]">
-                  <span className="text-teal-500 font-mono">Before: {formatCurrency(tp.profit_before)}</span>
-                  <TrendingDown className="w-3.5 h-3.5 text-coral-500" />
-                  <span className="text-coral-500 font-mono">After: {formatCurrency(tp.profit_after)}</span>
-                </div>
+              <div className="bg-cloud rounded-lg p-3">
+                <p className="text-[10px] text-text-secondary uppercase tracking-wide">Avg TCE</p>
+                <p className="text-lg font-bold font-mono text-ocean-600">{formatCurrencyFull(bCurrent.avg_tce)}/d</p>
               </div>
             </div>
           </motion.div>
-        ))}
+
+          {/* Bunker Price Chart */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+            className="bg-white rounded-xl border border-[#DCE3ED] shadow-card p-5">
+            <h3 className="text-sm font-semibold text-navy-900 mb-3">Profit vs Bunker Price</h3>
+            <ResponsiveContainer width="100%" height={240}>
+              <ComposedChart data={bunkerSensitivity}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#DCE3ED" />
+                <XAxis dataKey="parameter_value" tickFormatter={(v: number) => `${Math.round(v * 100)}%`} tick={{ fontSize: 10, fill: '#6B7B8D' }} />
+                <YAxis tickFormatter={(v: number) => formatCurrency(v)} tick={{ fontSize: 10, fill: '#6B7B8D' }} />
+                <Tooltip formatter={(v: number) => formatCurrencyFull(v)} labelFormatter={(l: number) => `${Math.round(l * 100)}% of base`} />
+                <Area dataKey="total_profit" fill="#D6EAF8" stroke="none" fillOpacity={0.5} />
+                <Line dataKey="total_profit" stroke="#1B6CA8" strokeWidth={2.5} dot={false} name="Profit" />
+                <ReferenceLine x={1.18} stroke="#E74C5E" strokeDasharray="4 4" label={{ value: 'Tipping', position: 'top', fontSize: 9, fill: '#E74C5E' }} />
+                <ReferenceLine x={bunkerMult} stroke="#0B2545" strokeWidth={2} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </motion.div>
+
+          {/* Bunker Tipping Point Card */}
+          {bunkerTippingPoint && (
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+              <ExpandableTippingPointCard
+                type="bunker"
+                parameter={bunkerTippingPoint.parameter}
+                value={bunkerTippingPoint.value}
+                description={bunkerTippingPoint.description}
+                profit_before={bunkerTippingPoint.profit_before}
+                profit_after={bunkerTippingPoint.profit_after}
+                portfolio_before={bunkerTippingPoint.portfolio_before}
+                portfolio_after={bunkerTippingPoint.portfolio_after}
+                ports_affected={bunkerTippingPoint.ports_affected}
+              />
+            </motion.div>
+          )}
+        </div>
+
+        {/* RIGHT COLUMN - CHINA PORT DELAY SENSITIVITY */}
+        <div className="space-y-5">
+          {/* China Port Delay Slider */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+            className="bg-white rounded-xl border border-[#DCE3ED] shadow-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-coral-500" />
+                <h3 className="text-sm font-semibold text-navy-900">Port Delay Sensitivity (China)</h3>
+              </div>
+              <p className="text-xs text-[#6B7B8D]">
+                Affects: {CHINA_PORTS.slice(0, 4).map(p => p.charAt(0) + p.slice(1).toLowerCase()).join(', ')}...
+              </p>
+            </div>
+            <div className="flex items-center gap-4 mb-2">
+              <input
+                type="range"
+                min={0}
+                max={15}
+                step={0.5}
+                value={chinaDelayDays}
+                onChange={e => setChinaDelayDays(Number(e.target.value))}
+                className="flex-1 h-2 rounded-lg appearance-none accent-coral-500"
+                style={{
+                  background: `linear-gradient(to right, #FECACA 0%, #FECACA ${(chinaDelayDays / 15) * 100}%, #FEE2E2 ${(chinaDelayDays / 15) * 100}%, #FEE2E2 100%)`
+                }}
+              />
+              <span className="text-lg font-bold text-navy-900 w-16 text-right font-mono">+{chinaDelayDays}d</span>
+            </div>
+            <div className="flex justify-between text-[10px] text-text-secondary mb-4">
+              <span>0 days</span><span>7.5</span><span>15 days</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-coral-50 rounded-lg p-3">
+                <p className="text-[10px] text-text-secondary uppercase tracking-wide">Profit</p>
+                <p className={`text-lg font-bold font-mono ${chinaCurrent.total_profit < 1500000 ? 'text-coral-500' : 'text-teal-500'}`}>
+                  {formatCurrency(chinaCurrent.total_profit)}
+                </p>
+              </div>
+              <div className="bg-coral-50 rounded-lg p-3">
+                <p className="text-[10px] text-text-secondary uppercase tracking-wide">Avg TCE</p>
+                <p className="text-lg font-bold font-mono text-ocean-600">{formatCurrencyFull(chinaCurrent.avg_tce)}/d</p>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* China Delay Chart */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+            className="bg-white rounded-xl border border-[#DCE3ED] shadow-card p-5">
+            <h3 className="text-sm font-semibold text-navy-900 mb-3">Profit vs China Port Delay</h3>
+            <ResponsiveContainer width="100%" height={240}>
+              <ComposedChart data={chinadelaySensitivity}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#DCE3ED" />
+                <XAxis
+                  dataKey="parameter_value"
+                  tickFormatter={(v: number) => `+${v}d`}
+                  tick={{ fontSize: 10, fill: '#6B7B8D' }}
+                />
+                <YAxis
+                  tickFormatter={(v: number) => formatCurrency(v)}
+                  tick={{ fontSize: 10, fill: '#6B7B8D' }}
+                />
+                <Tooltip
+                  formatter={(v: number) => formatCurrencyFull(v)}
+                  labelFormatter={(l: number) => `+${l} days delay (China)`}
+                />
+                <Area dataKey="total_profit" fill="#FECACA" stroke="none" fillOpacity={0.4} />
+                <Line dataKey="total_profit" stroke="#E57373" strokeWidth={2.5} dot={false} name="Profit" />
+                {chinaTippingPoint && (
+                  <ReferenceLine
+                    x={chinaTippingPoint.value}
+                    stroke="#E74C5E"
+                    strokeDasharray="4 4"
+                    label={{ value: 'Tipping', position: 'top', fontSize: 9, fill: '#E74C5E' }}
+                  />
+                )}
+                <ReferenceLine x={chinaDelayDays} stroke="#0B2545" strokeWidth={2} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </motion.div>
+
+          {/* China Tipping Point Card */}
+          {chinaTippingPoint && (
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+              <ExpandableTippingPointCard
+                type="delay"
+                parameter={chinaTippingPoint.parameter}
+                value={chinaTippingPoint.value}
+                description={chinaTippingPoint.description}
+                profit_before={chinaTippingPoint.profit_before}
+                profit_after={chinaTippingPoint.profit_after}
+                portfolio_before={chinaTippingPoint.portfolio_before}
+                portfolio_after={chinaTippingPoint.portfolio_after}
+                ports_affected={chinaTippingPoint.ports_affected}
+              />
+            </motion.div>
+          )}
+        </div>
       </div>
 
       {/* 2D scenario heatmap */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
         className="bg-white rounded-xl border border-[#DCE3ED] shadow-card p-5">
-        <h3 className="text-sm font-semibold text-navy-900 mb-3">2D Scenario Heatmap: Bunker Price x Port Delay</h3>
+        <h3 className="text-sm font-semibold text-navy-900 mb-3">2D Scenario Heatmap: Bunker Price x China Port Delay</h3>
         <Plot
           data={[{
             z: heatZ,
-            x: delayRange.map(d => `+${d}d`),
+            x: chinaDelayRange.map(d => `+${d}d`),
             y: bunkerRange.map(b => `${Math.round(b * 100)}%`),
             type: 'heatmap',
             colorscale: [[0, '#E74C5E'], [0.3, '#F5A623'], [0.6, '#48A9E6'], [1, '#0FA67F']],
-            hovertemplate: 'Bunker: %{y}<br>Delay: %{x}<br>Profit: $%{z:,.0f}<extra></extra>',
+            hovertemplate: 'Bunker: %{y}<br>China Delay: %{x}<br>Profit: $%{z:,.0f}<extra></extra>',
             showscale: true,
             colorbar: {
               title: { text: 'Profit ($)', font: { size: 10, color: '#6B7B8D' } },
@@ -216,7 +298,7 @@ export default function ScenariosPage() {
             paper_bgcolor: 'transparent',
             plot_bgcolor: 'transparent',
             font: { family: 'Inter, system-ui, sans-serif', size: 11, color: '#0B2545' },
-            xaxis: { title: { text: 'Extra Port Delay', font: { size: 10, color: '#6B7B8D' } }, tickfont: { size: 9, color: '#6B7B8D' } },
+            xaxis: { title: { text: 'China Port Delay', font: { size: 10, color: '#6B7B8D' } }, tickfont: { size: 9, color: '#6B7B8D' } },
             yaxis: { title: { text: 'Bunker Price', font: { size: 10, color: '#6B7B8D' } }, tickfont: { size: 9, color: '#6B7B8D' } },
           }}
           config={{ displayModeBar: false, responsive: true }}

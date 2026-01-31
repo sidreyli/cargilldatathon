@@ -1,7 +1,14 @@
 import type {
   Vessel, Cargo, VoyageResult, Assignment, PortfolioResult,
-  ScenarioPoint, TippingPoint, PortDelay, ModelInfo, ChatMessage
+  ScenarioPoint, TippingPoint, TippingPointExtended, AssignmentDetail,
+  PortDelay, ModelInfo, ChatMessage
 } from '../types';
+
+// ─── China Ports ──────────────────────────────────────────────
+export const CHINA_PORTS = [
+  'QINGDAO', 'RIZHAO', 'CAOFEIDIAN', 'FANGCHENG',
+  'LIANYUNGANG', 'SHANGHAI', 'TIANJIN', 'DALIAN'
+];
 
 // ─── Vessels ───────────────────────────────────────────────
 export const mockVessels: Vessel[] = [
@@ -143,43 +150,131 @@ export const mockPortfolios: PortfolioResult[] = [
 
 // ─── Bunker Sensitivity ────────────────────────────────────
 export const mockBunkerSensitivity: ScenarioPoint[] = [
-  { parameter_value: 0.80, total_profit: 2986000, avg_tce: 28100, assignments: ['Ann Bell→BHP', 'Ocean Horizon→CSN', 'Pacific Glory→EGA'] },
-  { parameter_value: 0.85, total_profit: 2826000, avg_tce: 27200, assignments: ['Ann Bell→BHP', 'Ocean Horizon→CSN', 'Pacific Glory→EGA'] },
-  { parameter_value: 0.90, total_profit: 2666000, avg_tce: 26300, assignments: ['Ann Bell→BHP', 'Ocean Horizon→CSN', 'Pacific Glory→EGA'] },
-  { parameter_value: 0.95, total_profit: 2506000, avg_tce: 25400, assignments: ['Ann Bell→BHP', 'Ocean Horizon→CSN', 'Pacific Glory→EGA'] },
-  { parameter_value: 1.00, total_profit: 2346927, avg_tce: 24213, assignments: ['Ann Bell→BHP', 'Ocean Horizon→CSN', 'Pacific Glory→EGA'] },
-  { parameter_value: 1.05, total_profit: 2186000, avg_tce: 23100, assignments: ['Ann Bell→BHP', 'Ocean Horizon→CSN', 'Pacific Glory→EGA'] },
-  { parameter_value: 1.10, total_profit: 2026000, avg_tce: 22000, assignments: ['Ann Bell→BHP', 'Ocean Horizon→CSN', 'Pacific Glory→EGA'] },
-  { parameter_value: 1.15, total_profit: 1866000, avg_tce: 20900, assignments: ['Ann Bell→BHP', 'Ocean Horizon→CSN', 'Pacific Glory→EGA'] },
-  { parameter_value: 1.20, total_profit: 1706000, avg_tce: 19800, assignments: ['Ann Bell→BHP', 'Golden Ascent→CSN', 'Pacific Glory→EGA'] },
-  { parameter_value: 1.25, total_profit: 1546000, avg_tce: 18700, assignments: ['Ann Bell→BHP', 'Golden Ascent→CSN', 'Pacific Glory→EGA'] },
-  { parameter_value: 1.30, total_profit: 1386000, avg_tce: 17600, assignments: ['Ann Bell→BHP', 'Golden Ascent→CSN', 'Pacific Glory→EGA'] },
-  { parameter_value: 1.35, total_profit: 1226000, avg_tce: 16500, assignments: ['Ann Bell→BHP', 'Golden Ascent→CSN', 'Pacific Glory→EGA'] },
-  { parameter_value: 1.40, total_profit: 1066000, avg_tce: 15400, assignments: ['Ann Bell→BHP', 'Golden Ascent→CSN', 'Pacific Glory→EGA'] },
-  { parameter_value: 1.50, total_profit: 746000, avg_tce: 13200, assignments: ['Ann Bell→BHP', 'Golden Ascent→CSN', 'Pacific Glory→EGA'] },
+  { parameter_value: 0.80, total_profit: 6603000, avg_tce: 32100, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 0.85, total_profit: 6403000, avg_tce: 31200, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 0.90, total_profit: 6203000, avg_tce: 30300, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 0.95, total_profit: 6003000, avg_tce: 29400, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 1.00, total_profit: 5803558, avg_tce: 28725, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 1.05, total_profit: 5603000, avg_tce: 28100, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 1.10, total_profit: 5403000, avg_tce: 27000, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 1.15, total_profit: 5203000, avg_tce: 25900, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 1.20, total_profit: 5003000, avg_tce: 24800, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 1.25, total_profit: 4803000, avg_tce: 23700, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 1.30, total_profit: 4603000, avg_tce: 22600, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 1.35, total_profit: 4403000, avg_tce: 21500, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 1.40, total_profit: 4203000, avg_tce: 20400, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 1.50, total_profit: 3803000, avg_tce: 18200, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
 ];
 
 // ─── Port Delay Sensitivity ────────────────────────────────
 export const mockPortDelaySensitivity: ScenarioPoint[] = [
-  { parameter_value: 0, total_profit: 2346927, avg_tce: 24213, assignments: ['Ann Bell→BHP', 'Ocean Horizon→CSN', 'Pacific Glory→EGA'] },
-  { parameter_value: 1, total_profit: 2248000, avg_tce: 23400, assignments: ['Ann Bell→BHP', 'Ocean Horizon→CSN', 'Pacific Glory→EGA'] },
-  { parameter_value: 2, total_profit: 2149000, avg_tce: 22600, assignments: ['Ann Bell→BHP', 'Ocean Horizon→CSN', 'Pacific Glory→EGA'] },
-  { parameter_value: 3, total_profit: 2050000, avg_tce: 21800, assignments: ['Ann Bell→BHP', 'Ocean Horizon→CSN', 'Pacific Glory→EGA'] },
-  { parameter_value: 4, total_profit: 1951000, avg_tce: 21000, assignments: ['Ann Bell→BHP', 'Ocean Horizon→CSN', 'Pacific Glory→EGA'] },
-  { parameter_value: 5, total_profit: 1852000, avg_tce: 20200, assignments: ['Ann Bell→BHP', 'Ocean Horizon→CSN', 'Pacific Glory→EGA'] },
-  { parameter_value: 6, total_profit: 1753000, avg_tce: 19400, assignments: ['Ann Bell→BHP', 'Golden Ascent→CSN', 'Pacific Glory→EGA'] },
-  { parameter_value: 7, total_profit: 1654000, avg_tce: 18600, assignments: ['Ann Bell→BHP', 'Golden Ascent→CSN', 'Pacific Glory→EGA'] },
-  { parameter_value: 8, total_profit: 1555000, avg_tce: 17800, assignments: ['Ann Bell→BHP', 'Golden Ascent→CSN', 'Pacific Glory→EGA'] },
-  { parameter_value: 10, total_profit: 1357000, avg_tce: 16200, assignments: ['Ann Bell→BHP', 'Golden Ascent→CSN', 'Pacific Glory→EGA'] },
-  { parameter_value: 12, total_profit: 1159000, avg_tce: 14600, assignments: ['Ann Bell→BHP', 'Golden Ascent→CSN', 'Ann Bell→EGA'] },
-  { parameter_value: 15, total_profit: 862000, avg_tce: 12200, assignments: ['Ann Bell→BHP', 'Golden Ascent→CSN', 'Ann Bell→EGA'] },
+  { parameter_value: 0, total_profit: 5803558, avg_tce: 28725, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 1, total_profit: 5703000, avg_tce: 28200, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 2, total_profit: 5603000, avg_tce: 27600, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 3, total_profit: 5503000, avg_tce: 27000, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 4, total_profit: 5403000, avg_tce: 26400, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 5, total_profit: 5303000, avg_tce: 25800, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 6, total_profit: 5203000, avg_tce: 25200, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 7, total_profit: 5103000, avg_tce: 24600, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 8, total_profit: 5003000, avg_tce: 24000, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 10, total_profit: 4803000, avg_tce: 22800, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 12, total_profit: 4603000, avg_tce: 21600, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 15, total_profit: 4303000, avg_tce: 20000, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
 ];
 
 // ─── Tipping Points ────────────────────────────────────────
 export const mockTippingPoints: TippingPoint[] = [
-  { parameter: 'Bunker Price', value: 1.18, description: 'At 118% of current bunker prices, Ocean Horizon is replaced by Golden Ascent for CSN Iron Ore due to lower fuel consumption on the eco route.', profit_before: 2026000, profit_after: 1946000 },
-  { parameter: 'Port Delay', value: 5.5, description: 'At 5.5 extra days of port delay, Ocean Horizon can no longer make CSN laycan. Golden Ascent (closer departure) takes over.', profit_before: 1852000, profit_after: 1753000 },
+  { parameter: 'Bunker Price', value: 1.18, description: 'At 118% of current bunker prices, the arbitrage strategy becomes less profitable due to increased fuel costs.', profit_before: 5803558, profit_after: 5103000 },
+  { parameter: 'Port Delay', value: 5.5, description: 'At 5.5 extra days of port delay, extended waiting times reduce overall portfolio profitability.', profit_before: 5803558, profit_after: 5253000 },
 ];
+
+// ─── Extended Tipping Points (with assignment details) ─────────
+export const mockTippingPointsExtended: Record<string, TippingPointExtended> = {
+  bunker: {
+    parameter: 'Bunker Price',
+    value: 1.18,
+    description: 'At 118% of current bunker prices, increased fuel costs reduce arbitrage profitability.',
+    profit_before: 5803558,
+    profit_after: 5103000,
+    current_best_assignments: [
+      { vessel: 'Ann Bell', cargo: 'Vale Malaysia Iron Ore', profit: 915509, tce: 22614 },
+      { vessel: 'Ocean Horizon', cargo: 'BHP Iron Ore (S.Korea)', profit: 350978, tce: 27036 },
+      { vessel: 'Pacific Glory', cargo: 'Teck Coking Coal', profit: 708408, tce: 29426 },
+      { vessel: 'Golden Ascent', cargo: 'Adaro Coal', profit: 1169745, tce: 35181 },
+    ],
+    next_best_assignments: [
+      { vessel: 'Ann Bell', cargo: 'Vale Malaysia Iron Ore', profit: 815000, tce: 20100 },
+      { vessel: 'Ocean Horizon', cargo: 'BHP Iron Ore (S.Korea)', profit: 280000, tce: 24500 },
+      { vessel: 'Pacific Glory', cargo: 'Teck Coking Coal', profit: 608000, tce: 26900 },
+      { vessel: 'Golden Ascent', cargo: 'Adaro Coal', profit: 1070000, tce: 32600 },
+    ],
+  },
+  port_delay: {
+    parameter: 'Port Delay',
+    value: 5.5,
+    description: 'At +5.5 days delay, extended waiting times reduce overall portfolio profitability.',
+    profit_before: 5803558,
+    profit_after: 5253000,
+    current_best_assignments: [
+      { vessel: 'Ann Bell', cargo: 'Vale Malaysia Iron Ore', profit: 915509, tce: 22614 },
+      { vessel: 'Ocean Horizon', cargo: 'BHP Iron Ore (S.Korea)', profit: 350978, tce: 27036 },
+      { vessel: 'Pacific Glory', cargo: 'Teck Coking Coal', profit: 708408, tce: 29426 },
+      { vessel: 'Golden Ascent', cargo: 'Adaro Coal', profit: 1169745, tce: 35181 },
+    ],
+    next_best_assignments: [
+      { vessel: 'Ann Bell', cargo: 'Vale Malaysia Iron Ore', profit: 815000, tce: 20100 },
+      { vessel: 'Ocean Horizon', cargo: 'BHP Iron Ore (S.Korea)', profit: 300000, tce: 25000 },
+      { vessel: 'Pacific Glory', cargo: 'Teck Coking Coal', profit: 650000, tce: 27500 },
+      { vessel: 'Golden Ascent', cargo: 'Adaro Coal', profit: 1100000, tce: 33500 },
+    ],
+  },
+};
+
+// ─── China-Specific Port Delay Sensitivity ────────────────────
+export const mockChinaDelaySensitivity: ScenarioPoint[] = [
+  { parameter_value: 0, total_profit: 5803558, avg_tce: 28725, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 0.5, total_profit: 5753000, avg_tce: 28450, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 1, total_profit: 5703000, avg_tce: 28175, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 1.5, total_profit: 5653000, avg_tce: 27900, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 2, total_profit: 5603000, avg_tce: 27625, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 2.5, total_profit: 5553000, avg_tce: 27350, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 3, total_profit: 5503000, avg_tce: 27075, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 3.5, total_profit: 5453000, avg_tce: 26800, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 4, total_profit: 5403000, avg_tce: 26525, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 4.5, total_profit: 5353000, avg_tce: 26250, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 5, total_profit: 5303000, avg_tce: 25975, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 5.5, total_profit: 5253000, avg_tce: 25700, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 6, total_profit: 5203000, avg_tce: 25425, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 7, total_profit: 5103000, avg_tce: 24875, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 8, total_profit: 5003000, avg_tce: 24325, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 9, total_profit: 4903000, avg_tce: 23775, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 10, total_profit: 4803000, avg_tce: 23225, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 12, total_profit: 4603000, avg_tce: 22125, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+  { parameter_value: 15, total_profit: 4303000, avg_tce: 20475, assignments: ['Ann Bell→Vale', 'Ocean Horizon→BHP', 'Pacific Glory→Teck', 'Golden Ascent→Adaro'] },
+];
+
+// ─── China-Specific Tipping Point ──────────────────────────────
+export const mockChinaTippingPoint: TippingPointExtended = {
+  parameter: 'Port Delay (China)',
+  value: 4.5,
+  description: 'At +4.5 days delay in Chinese ports, extended waiting times increase costs and reduce profitability.',
+  profit_before: 5803558,
+  profit_after: 5353000,
+  region: 'China',
+  ports_affected: ['Qingdao', 'Lianyungang'],
+  current_best_assignments: [
+    { vessel: 'Ann Bell', cargo: 'Vale Malaysia Iron Ore', profit: 915509, tce: 22614 },
+    { vessel: 'Ocean Horizon', cargo: 'BHP Iron Ore (S.Korea)', profit: 350978, tce: 27036 },
+    { vessel: 'Pacific Glory', cargo: 'Teck Coking Coal', profit: 708408, tce: 29426 },
+    { vessel: 'Golden Ascent', cargo: 'Adaro Coal', profit: 1169745, tce: 35181 },
+  ],
+  next_best_assignments: [
+    { vessel: 'Ann Bell', cargo: 'Vale Malaysia Iron Ore', profit: 850000, tce: 21000 },
+    { vessel: 'Ocean Horizon', cargo: 'BHP Iron Ore (S.Korea)', profit: 310000, tce: 25500 },
+    { vessel: 'Pacific Glory', cargo: 'Teck Coking Coal', profit: 660000, tce: 27800 },
+    { vessel: 'Golden Ascent', cargo: 'Adaro Coal', profit: 1100000, tce: 33500 },
+  ],
+};
 
 // ─── Port Delays (ML predictions) ──────────────────────────
 export const mockPortDelays: PortDelay[] = [
@@ -189,7 +284,7 @@ export const mockPortDelays: PortDelay[] = [
   { port: 'Fangcheng', predicted_delay_days: 2.8, confidence_lower: 1.5, confidence_upper: 4.1, congestion_level: 'medium', model_used: 'ml_model' },
   { port: 'Mundra', predicted_delay_days: 1.4, confidence_lower: 0.8, confidence_upper: 2.0, congestion_level: 'low', model_used: 'ml_model' },
   { port: 'Vizag', predicted_delay_days: 2.6, confidence_lower: 1.4, confidence_upper: 3.8, congestion_level: 'medium', model_used: 'ml_model' },
-  { port: 'Lianyungang', predicted_delay_days: 3.8, confidence_lower: 2.4, confidence_upper: 5.2, congestion_level: 'medium', model_used: 'ml_model' },
+  { port: 'Lianyungang', predicted_delay_days: 3.0, confidence_lower: 1.6, confidence_upper: 4.4, congestion_level: 'medium', model_used: 'ml_model' },
   { port: 'Port Hedland', predicted_delay_days: 0.8, confidence_lower: 0.3, confidence_upper: 1.3, congestion_level: 'low', model_used: 'ml_model' },
 ];
 

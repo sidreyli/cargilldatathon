@@ -12,9 +12,9 @@ import { formatCurrencyFull, formatCurrency } from '../../utils/formatters';
 type SortKey = 'vessel' | 'cargo' | 'tce' | 'net_profit' | 'total_days' | 'can_make_laycan';
 type SortDir = 'asc' | 'desc';
 
-export default function VoyagesPage() {
-  const { data: apiVoyages, isLoading: loadingVoyages, isFetching } = useAllVoyages();
-  const { data: apiPortfolio } = usePortfolio();
+export default function VoyagesPage({ useMLDelays }: { useMLDelays: boolean }) {
+  const { data: apiVoyages, isLoading: loadingVoyages, isFetching } = useAllVoyages(useMLDelays);
+  const { data: apiPortfolio } = usePortfolio(useMLDelays);
   const allVoyages = apiVoyages && apiVoyages.length > 0 ? apiVoyages : mockAllVoyages;
   const portfolio = apiPortfolio || mockPortfolio;
   const optSet = new Set(portfolio.assignments?.map((a: any) => `${a.vessel}|${a.cargo}`) || []);

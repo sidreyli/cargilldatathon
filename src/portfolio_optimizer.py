@@ -475,6 +475,8 @@ class FullPortfolioOptimizer:
         use_eco_speed: bool = True,
         target_tce: float = 18000,  # Target profit/day for calculations
         dual_speed_mode: bool = False,
+        port_delays: Optional[Dict[str, float]] = None,
+        bunker_adjustment: float = 1.0,
     ) -> pd.DataFrame:
         """
         Calculate voyage economics for VALID vessel-cargo combinations only.
@@ -501,7 +503,7 @@ class FullPortfolioOptimizer:
                 for eco_speed in speed_options:
                     option = self._calculate_option(
                         vessel, cargo, "cargill", "cargill",
-                        eco_speed, target_tce
+                        eco_speed, target_tce, port_delays, bunker_adjustment
                     )
                     speed_type = 'eco' if eco_speed else 'warranted'
                     results.append(self._option_to_dict(option, speed_type))
@@ -512,7 +514,7 @@ class FullPortfolioOptimizer:
                 for eco_speed in speed_options:
                     option = self._calculate_option(
                         vessel, cargo, "cargill", "market",
-                        eco_speed, target_tce
+                        eco_speed, target_tce, port_delays, bunker_adjustment
                     )
                     speed_type = 'eco' if eco_speed else 'warranted'
                     results.append(self._option_to_dict(option, speed_type))
@@ -523,7 +525,7 @@ class FullPortfolioOptimizer:
                 for eco_speed in speed_options:
                     option = self._calculate_option(
                         vessel, cargo, "market", "cargill",
-                        eco_speed, target_tce
+                        eco_speed, target_tce, port_delays, bunker_adjustment
                     )
                     speed_type = 'eco' if eco_speed else 'warranted'
                     results.append(self._option_to_dict(option, speed_type))
@@ -565,6 +567,8 @@ class FullPortfolioOptimizer:
         cargo_type: str,
         use_eco_speed: bool,
         target_tce: float,
+        port_delays: Optional[Dict[str, float]] = None,
+        bunker_adjustment: float = 1.0,
     ) -> VoyageOption:
         """Calculate a single voyage option with all economics."""
 
@@ -594,8 +598,19 @@ class FullPortfolioOptimizer:
                     half_freight_threshold=cargo.half_freight_threshold,
                 )
 
+            # Determine port-specific delay
+            extra_delay = 0.0
+            if port_delays:
+                port_name = temp_cargo.discharge_port.upper()
+                for key, value in port_delays.items():
+                    if key.upper() in port_name or port_name in key.upper():
+                        extra_delay = value
+                        break
+
             result = self.calculator.calculate_voyage(
-                vessel, temp_cargo, use_eco_speed=use_eco_speed
+                vessel, temp_cargo, use_eco_speed=use_eco_speed,
+                extra_port_delay_days=extra_delay,
+                bunker_price_adjustment=bunker_adjustment
             )
 
             # Calculate economics based on vessel/cargo type combination
@@ -741,6 +756,8 @@ class FullPortfolioOptimizer:
         target_tce: float = 18000,
         dual_speed_mode: bool = False,
         top_n: int = 1,
+        port_delays: Optional[Dict[str, float]] = None,
+        bunker_adjustment: float = 1.0,
     ) -> List[FullPortfolioResult]:
         """
         Optimize the full portfolio using JOINT OPTIMIZATION.
@@ -762,7 +779,8 @@ class FullPortfolioOptimizer:
         all_options = self.calculate_all_options(
             cargill_vessels, market_vessels,
             cargill_cargoes, market_cargoes,
-            use_eco_speed, target_tce, dual_speed_mode
+            use_eco_speed, target_tce, dual_speed_mode,
+            port_delays, bunker_adjustment
         )
 
         # Step 2: Filter to valid options (can make laycan)
@@ -1020,6 +1038,73 @@ class FullPortfolioOptimizer:
             market_cargo_freight_bids={},
             all_options=all_options,
         )
+
+    def calculate_fixed_portfolio_profit(
+        self,
+        fixed_assignments: List[Tuple[str, str, str]],  # [(vessel, cargo, type), ...]
+        fixed_market_hires: List[Tuple[str, str]],  # [(vessel, cargo), ...]
+        cargill_vessels: List[Vessel],
+        market_vessels: List[Vessel],
+        cargill_cargoes: List[Cargo],
+        market_cargoes: List[Cargo],
+        port_delays: Optional[Dict[str, float]] = None,
+        bunker_adjustment: float = 1.0,
+    ) -> float:
+        """
+        Calculate the total profit of a FIXED portfolio with given parameters.
+
+        This recalculates voyage economics for the exact same assignments with
+        different conditions (delays, bunker prices), without re-optimizing.
+
+        Used for tipping point detection: "What would the baseline portfolio
+        earn if we apply X days of delay?"
+        """
+        total_profit = 0.0
+
+        # Calculate profit for each Cargill vessel assignment
+        for vessel_name, cargo_name, speed_type in fixed_assignments:
+            # Find vessel and cargo objects
+            vessel = next((v for v in cargill_vessels if v.name == vessel_name), None)
+            cargo = next((c for c in cargill_cargoes + market_cargoes if c.name == cargo_name), None)
+
+            if vessel and cargo:
+                use_eco_speed = (speed_type == 'eco')
+
+                # Determine cargo type for profit calculation
+                cargo_type = 'cargill' if cargo.is_cargill else 'market'
+
+                # Calculate option with current conditions
+                option = self._calculate_option(
+                    vessel, cargo, 'cargill', cargo_type,
+                    use_eco_speed, 18000, port_delays, bunker_adjustment
+                )
+
+                if option.result:
+                    total_profit += option.net_profit
+
+        # Calculate profit for market vessel hires
+        FFA_MARKET_RATE = 18000
+
+        for vessel_name, cargo_name in fixed_market_hires:
+            vessel = next((v for v in market_vessels if v.name == vessel_name), None)
+            cargo = next((c for c in cargill_cargoes if c.name == cargo_name), None)
+
+            if vessel and cargo:
+                # Market vessels: assume eco speed for consistency
+                option = self._calculate_option(
+                    vessel, cargo, 'market', 'cargill',
+                    True, 18000, port_delays, bunker_adjustment
+                )
+
+                if option.result:
+                    # Profit = Net Freight - Voyage Costs - Hire
+                    hire_cost = FFA_MARKET_RATE * option.result.total_days
+                    voyage_costs = (option.result.total_bunker_cost +
+                                   option.result.port_costs + 15000)
+                    profit = option.result.net_freight - voyage_costs - hire_cost
+                    total_profit += profit
+
+        return total_profit
 
 
 def print_full_portfolio_report(result: FullPortfolioResult):
@@ -1305,17 +1390,17 @@ class ScenarioAnalyzer:
     ) -> pd.DataFrame:
         """
         Analyze how port delays affect optimal assignments.
-        
+
         Returns DataFrame showing tipping points.
         """
         results = []
-        
+
         for delay in range(0, max_delay_days + 1):
             portfolio = self.optimizer.optimize_assignments(
                 vessels, cargoes,
                 extra_port_delay=delay,
             )
-            
+
             results.append({
                 'port_delay_days': delay,
                 'total_profit': portfolio.total_profit,
@@ -1324,29 +1409,337 @@ class ScenarioAnalyzer:
                 'assignments': ', '.join([f"{a[0]}->{a[1][:20]}" for a in portfolio.assignments]),
                 'unassigned_cargoes': ', '.join(portfolio.unassigned_cargoes),
             })
-        
+
+        return pd.DataFrame(results)
+
+    def analyze_china_port_delay_sensitivity(
+        self,
+        vessels: List[Vessel],
+        cargoes: List[Cargo],
+        max_delay_days: int = 15,
+        step: float = 0.5,
+    ) -> pd.DataFrame:
+        """
+        Analyze how port delays specifically in Chinese ports affect optimal assignments.
+
+        Chinese ports include: QINGDAO, RIZHAO, CAOFEIDIAN, FANGCHENG,
+        LIANYUNGANG, SHANGHAI, TIANJIN, DALIAN
+
+        Returns DataFrame showing sensitivity to China-specific delays.
+        """
+        CHINA_PORTS = [
+            'QINGDAO', 'RIZHAO', 'CAOFEIDIAN', 'FANGCHENG',
+            'LIANYUNGANG', 'SHANGHAI', 'TIANJIN', 'DALIAN'
+        ]
+
+        results = []
+        delay_days = 0.0
+
+        while delay_days <= max_delay_days:
+            # Build port delays dict with only China ports having delays
+            port_delays = {}
+            for port in CHINA_PORTS:
+                port_delays[port] = delay_days
+
+            portfolio = self.optimizer.optimize_assignments(
+                vessels, cargoes,
+                port_delays=port_delays,
+            )
+
+            results.append({
+                'port_delay_days': delay_days,
+                'total_profit': portfolio.total_profit,
+                'avg_tce': portfolio.avg_tce,
+                'n_assignments': len(portfolio.assignments),
+                'assignments': ', '.join([f"{a[0]}->{a[1][:20]}" for a in portfolio.assignments]),
+                'unassigned_cargoes': ', '.join(portfolio.unassigned_cargoes),
+            })
+
+            delay_days += step
+
         return pd.DataFrame(results)
     
+    def _extract_portfolio_details(self, portfolio: 'FullPortfolioResult') -> Dict:
+        """Extract portfolio details for API response."""
+        cargill_assignments = []
+        for v, c, opt in portfolio.cargill_vessel_assignments:
+            cargill_assignments.append({
+                'vessel': v,
+                'cargo': c,
+                'vessel_type': 'cargill',
+                'cargo_type': opt.cargo_type,
+                'tce': round(opt.tce, 0),
+                'profit': round(opt.net_profit, 0),
+            })
+
+        market_hires = []
+        for v, c, opt in portfolio.market_vessel_assignments:
+            hire_rate = opt.recommended_hire_rate if hasattr(opt, 'recommended_hire_rate') else 18000
+            market_hires.append({
+                'vessel': v,
+                'cargo': c,
+                'vessel_type': 'market',
+                'cargo_type': 'cargill',
+                'tce': round(opt.tce, 0),
+                'profit': round(opt.net_profit, 0),
+                'hire_rate': round(hire_rate, 0),
+            })
+
+        return {
+            'cargill_assignments': cargill_assignments,
+            'market_hires': market_hires,
+            'unassigned_vessels': portfolio.unassigned_cargill_vessels,
+            'unassigned_cargoes': portfolio.unassigned_cargill_cargoes,
+            'total_profit': round(portfolio.total_profit, 0),
+            'total_tce': round(portfolio.total_tce, 0),
+            'avg_tce': round(portfolio.avg_tce, 0),
+        }
+
+    def _portfolios_differ(self, p1: 'FullPortfolioResult', p2: 'FullPortfolioResult') -> bool:
+        """Check if two portfolios have different assignments."""
+        set1 = set((v, c) for v, c, _ in p1.cargill_vessel_assignments)
+        set1.update((v, c) for v, c, _ in p1.market_vessel_assignments)
+
+        set2 = set((v, c) for v, c, _ in p2.cargill_vessel_assignments)
+        set2.update((v, c) for v, c, _ in p2.market_vessel_assignments)
+
+        return set1 != set2
+
     def find_tipping_points(
         self,
         vessels: List[Vessel],
         cargoes: List[Cargo],
         max_bunker_increase_pct: float = 100,
         max_port_delay_days: int = 20,
+        full_optimizer: 'FullPortfolioOptimizer' = None,
+        market_vessels: List[Vessel] = None,
+        market_cargoes: List[Cargo] = None,
     ) -> Dict:
         """
         Find specific tipping points where recommendations change.
 
         Args:
-            vessels: List of vessels
-            cargoes: List of cargoes
+            vessels: List of Cargill vessels
+            cargoes: List of Cargill cargoes
             max_bunker_increase_pct: Maximum bunker price increase to search (default 100%)
             max_port_delay_days: Maximum port delay days to search (default 20)
+            full_optimizer: FullPortfolioOptimizer instance (for full portfolio including market)
+            market_vessels: List of market vessels (for full portfolio)
+            market_cargoes: List of market cargoes (for full portfolio)
 
         Returns:
-            Dict with 'bunker' and 'port_delay' tipping points (or None if not found),
-            plus 'max_bunker_searched' and 'max_delay_searched' for display.
+            Dict with 'bunker' and 'china_delay' tipping points (or None if not found),
+            including full portfolio details before and after.
         """
+
+        # If full optimizer provided, use it for complete portfolio analysis
+        if full_optimizer and market_vessels is not None and market_cargoes is not None:
+            return self._find_tipping_points_full(
+                vessels, cargoes, market_vessels, market_cargoes,
+                full_optimizer, max_bunker_increase_pct, max_port_delay_days
+            )
+
+        # Fallback to simple optimizer (for backward compatibility)
+        return self._find_tipping_points_simple(
+            vessels, cargoes, max_bunker_increase_pct, max_port_delay_days
+        )
+
+    def _find_tipping_points_full(
+        self,
+        cargill_vessels: List[Vessel],
+        cargill_cargoes: List[Cargo],
+        market_vessels: List[Vessel],
+        market_cargoes: List[Cargo],
+        full_optimizer: 'FullPortfolioOptimizer',
+        max_bunker_increase_pct: float,
+        max_port_delay_days: int,
+    ) -> Dict:
+        """Find tipping points using FULL portfolio optimizer."""
+
+        print(f"Finding tipping points with FULL portfolio optimizer...")
+
+        # Baseline using full portfolio at 1.0 bunker multiplier
+        baseline_results = full_optimizer.optimize_full_portfolio(
+            cargill_vessels=cargill_vessels,
+            market_vessels=market_vessels,
+            cargill_cargoes=cargill_cargoes,
+            market_cargoes=market_cargoes,
+            target_tce=18000,
+            dual_speed_mode=True,
+            top_n=1,
+            bunker_adjustment=1.0,  # Explicit baseline
+        )
+        baseline = baseline_results[0]
+        baseline_profit = baseline.total_profit
+        baseline_portfolio = self._extract_portfolio_details(baseline)
+
+        print(f"  Baseline portfolio: ${baseline_profit:,.0f}")
+
+        tipping_points = {
+            'bunker': None,
+            'china_delay': None,
+            'max_bunker_searched_pct': max_bunker_increase_pct,
+            'max_delay_searched_days': max_port_delay_days,
+        }
+
+        # ========== BUNKER TIPPING POINT SEARCH ==========
+        print(f"  Searching for bunker tipping point (up to +{max_bunker_increase_pct}%)...")
+
+        max_multiplier = 1.0 + (max_bunker_increase_pct / 100)
+
+        # Adaptive search strategy:
+        # 1. Coarse search with 10% steps to find approximate range
+        # 2. Fine search with 1% steps to pinpoint exact tipping point
+
+        # Phase 1: Coarse search (10% steps)
+        coarse_range = None
+        prev_mult = 1.0
+
+        for mult in np.arange(1.1, max_multiplier + 0.1, 0.1):  # 10% steps
+            results = full_optimizer.optimize_full_portfolio(
+                cargill_vessels=cargill_vessels,
+                market_vessels=market_vessels,
+                cargill_cargoes=cargill_cargoes,
+                market_cargoes=market_cargoes,
+                target_tce=18000,
+                dual_speed_mode=True,
+                top_n=1,
+                bunker_adjustment=mult,
+            )
+            current = results[0]
+
+            if self._portfolios_differ(baseline, current):
+                coarse_range = (prev_mult, mult)
+                print(f"    Coarse search: change detected between {prev_mult:.1f}x and {mult:.1f}x")
+                break
+
+            prev_mult = mult
+
+        # Phase 2: Fine search within detected range
+        if coarse_range:
+            start_mult, end_mult = coarse_range
+
+            for mult in np.arange(start_mult + 0.01, end_mult + 0.01, 0.01):  # 1% steps
+                results = full_optimizer.optimize_full_portfolio(
+                    cargill_vessels=cargill_vessels,
+                    market_vessels=market_vessels,
+                    cargill_cargoes=cargill_cargoes,
+                    market_cargoes=market_cargoes,
+                    target_tce=18000,
+                    dual_speed_mode=True,
+                    top_n=1,
+                    bunker_adjustment=mult,
+                )
+                current = results[0]
+
+                if self._portfolios_differ(baseline, current):
+                    current_portfolio = self._extract_portfolio_details(current)
+
+                    change_pct = round((mult - 1) * 100)
+                    print(f"    Bunker tipping point found at +{change_pct}% ({mult:.2f}x)")
+                    print(f"    Profit change: ${baseline_profit:,.0f} -> ${current.total_profit:,.0f}")
+
+                    tipping_points['bunker'] = {
+                        'value': round(mult, 2),
+                        'multiplier': round(mult, 2),
+                        'parameter': 'Bunker Price',
+                        'description': f"At +{change_pct}% bunker price increase, optimal strategy changes.",
+                        'profit_before': round(baseline_profit, 0),
+                        'profit_after': round(current.total_profit, 0),
+                        'portfolio_before': baseline_portfolio,
+                        'portfolio_after': current_portfolio,
+                    }
+                    break
+
+        if not tipping_points['bunker']:
+            print(f"    No bunker tipping point found up to +{max_bunker_increase_pct}%")
+
+        # ========== CHINA PORT DELAY TIPPING POINT SEARCH ==========
+        CHINA_PORTS = ['QINGDAO', 'RIZHAO', 'CAOFEIDIAN', 'FANGCHENG',
+                       'LIANYUNGANG', 'SHANGHAI', 'TIANJIN', 'DALIAN']
+
+        print(f"  Searching for China port delay tipping point (up to {max_port_delay_days} days)...")
+
+        # Extract baseline portfolio assignments for fixed recalculation
+        baseline_fixed_assignments = [
+            (vessel, cargo, 'eco') for vessel, cargo, _ in baseline.cargill_vessel_assignments
+        ]
+        baseline_fixed_hires = [
+            (vessel, cargo) for vessel, cargo, _ in baseline.market_vessel_assignments
+        ]
+
+        # Search for tipping point: when alternative portfolio becomes more profitable
+        for delay in np.arange(0.5, max_port_delay_days + 0.5, 0.5):
+            port_delays = {port: delay for port in CHINA_PORTS}
+
+            # Calculate: What would baseline portfolio earn with this delay?
+            baseline_profit_at_delay = full_optimizer.calculate_fixed_portfolio_profit(
+                baseline_fixed_assignments,
+                baseline_fixed_hires,
+                cargill_vessels, market_vessels,
+                cargill_cargoes, market_cargoes,
+                port_delays=port_delays,
+            )
+
+            # Optimize: What's the best alternative portfolio with this delay?
+            results = full_optimizer.optimize_full_portfolio(
+                cargill_vessels=cargill_vessels,
+                market_vessels=market_vessels,
+                cargill_cargoes=cargill_cargoes,
+                market_cargoes=market_cargoes,
+                target_tce=18000,
+                dual_speed_mode=True,
+                top_n=1,
+                port_delays=port_delays,
+            )
+            alternative = results[0]
+
+            # Tipping point = when alternative becomes more profitable than baseline @ delay
+            if alternative.total_profit > baseline_profit_at_delay:
+                alternative_portfolio = self._extract_portfolio_details(alternative)
+
+                profit_advantage = alternative.total_profit - baseline_profit_at_delay
+                profit_advantage_pct = (profit_advantage / baseline_profit) * 100
+                profit_degradation_pct = ((baseline_profit - baseline_profit_at_delay) / baseline_profit) * 100
+
+                print(f"    China delay tipping point found at +{delay} days")
+                print(f"    Baseline (no delay): ${baseline_profit:,.0f}")
+                print(f"    Baseline @ delay: ${baseline_profit_at_delay:,.0f} ({profit_degradation_pct:.1f}% degradation)")
+                print(f"    Re-optimized @ delay: ${alternative.total_profit:,.0f}")
+                print(f"    Switching advantage: ${profit_advantage:,.0f} (+{profit_advantage_pct:.1f}%)")
+
+                tipping_points['china_delay'] = {
+                    'value': delay,
+                    'parameter': 'Port Delay (China)',
+                    'description': f"At +{delay} days China port delay, baseline degrades {profit_degradation_pct:.0f}% and re-optimizing improves profit by ${profit_advantage:,.0f}.",
+
+                    # Clear, explicit profit fields
+                    'baseline_profit_no_delay': round(baseline_profit, 0),  # Original baseline: $5.8M
+                    'baseline_profit_with_delay': round(baseline_profit_at_delay, 0),  # Baseline @ delay: $2.34M
+                    'alternative_profit_with_delay': round(alternative.total_profit, 0),  # New best @ delay: $2.34M
+                    'switching_advantage': round(profit_advantage, 0),
+                    'profit_degradation_pct': round(profit_degradation_pct, 1),
+
+                    'portfolio_baseline': baseline_portfolio,  # Original baseline (delay=0)
+                    'portfolio_alternative': alternative_portfolio,  # New best (at tipping point delay)
+                    'ports_affected': CHINA_PORTS[:4],
+                }
+                break
+
+        if not tipping_points['china_delay']:
+            print(f"    No China delay tipping point found up to {max_port_delay_days} days")
+            print(f"    (Baseline portfolio remains optimal throughout delay range)")
+
+        return tipping_points
+
+    def _find_tipping_points_simple(
+        self,
+        vessels: List[Vessel],
+        cargoes: List[Cargo],
+        max_bunker_increase_pct: float,
+        max_port_delay_days: int,
+    ) -> Dict:
+        """Fallback method using simple PortfolioOptimizer (Cargill only)."""
 
         # Baseline
         baseline = self.optimizer.optimize_assignments(vessels, cargoes)

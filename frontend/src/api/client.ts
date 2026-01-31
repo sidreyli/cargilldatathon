@@ -19,8 +19,10 @@ async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   getVessels: () => fetchJson<any[]>('/vessels'),
   getCargoes: () => fetchJson<any[]>('/cargoes'),
-  getPortfolio: () => fetchJson<any>('/portfolio/optimize'),
-  getAllVoyages: () => fetchJson<any[]>('/portfolio/all-voyages'),
+  getPortfolio: (useMLDelays: boolean = false) =>
+    fetchJson<any>(`/portfolio/optimize?use_ml_delays=${useMLDelays}`),
+  getAllVoyages: (useMLDelays: boolean = false) =>
+    fetchJson<any[]>(`/portfolio/all-voyages?use_ml_delays=${useMLDelays}`),
 
   // Voyage
   calculateVoyage: (params: {
@@ -42,6 +44,7 @@ export const api = {
   // Scenarios
   getBunkerSensitivity: () => fetchJson<any[]>('/scenario/bunker'),
   getDelaySensitivity: () => fetchJson<any[]>('/scenario/port-delay'),
+  getChinaDelaySensitivity: () => fetchJson<any[]>('/scenario/china-port-delay'),
   getTippingPoints: () => fetchJson<any>('/scenario/tipping-points'),
 
   // ML

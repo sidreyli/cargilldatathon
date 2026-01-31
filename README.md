@@ -26,6 +26,20 @@ The optimizer recommends deploying all 4 Cargill vessels on higher-margin market
 - **Port Delay Sensitivity**: Effect of congestion delays on profitability
 - **Tipping Point Analysis**: Identifies when optimal assignments change
 
+#### Tipping Point Details
+
+The system identifies critical thresholds where optimal strategy changes:
+
+- **Bunker Price Threshold**: +31% increase (1.31x multiplier)
+  - At this point, high-speed voyages become uneconomical
+  - Portfolio strategy shifts to eco-speed and shorter routes
+  - Profit degrades from $5.8M to $4.0M
+
+- **China Port Delay Threshold**: +46 days additional delay
+  - Baseline portfolio remains optimal up to 45 days of delays
+  - Demonstrates high resilience of the optimized portfolio
+  - At 46 days, profit degrades 59.7% but re-optimization provides minimal advantage ($98)
+
 ### ML-Powered Insights
 - **Port Congestion Predictor**: Random Forest model predicting port delays
 - **Feature Engineering**: Day of week, seasonality, cargo type patterns
