@@ -58,6 +58,8 @@ The system identifies critical thresholds where optimal strategy changes:
 cargillDatathon/
 ├── api/                          # FastAPI Backend
 │   ├── main.py                   # API entry point
+│   ├── models/
+│   │   └── schemas.py            # Pydantic request/response models
 │   ├── routes/                   # REST endpoints
 │   │   ├── portfolio.py          # Portfolio & vessel APIs
 │   │   ├── voyage.py             # Voyage calculation APIs
@@ -71,13 +73,16 @@ cargillDatathon/
 ├── frontend/                     # React + Vite Frontend
 │   ├── src/
 │   │   ├── components/
+│   │   │   ├── chat/             # AI chat panel
 │   │   │   ├── dashboard/        # Portfolio dashboard
-│   │   │   ├── voyages/          # Voyage comparison table
-│   │   │   ├── scenarios/        # Sensitivity charts
+│   │   │   ├── layout/           # Header & navigation
 │   │   │   ├── ml/               # ML insights page
-│   │   │   └── chat/             # AI chat panel
+│   │   │   ├── scenarios/        # Sensitivity charts
+│   │   │   └── voyages/          # Voyage comparison table
 │   │   ├── api/                  # API client & React Query hooks
-│   │   └── types/                # TypeScript definitions
+│   │   ├── data/                 # Mock data for development
+│   │   ├── types/                # TypeScript definitions
+│   │   └── utils/                # Formatting utilities
 │   └── package.json
 │
 ├── src/                          # Core Python Analytics
@@ -85,16 +90,34 @@ cargillDatathon/
 │   ├── portfolio_optimizer.py    # Optimization algorithms
 │   └── ml/                       # Machine learning models
 │       ├── port_congestion_predictor.py
-│       └── feature_engineering.py
+│       ├── feature_engineering.py
+│       └── holiday_calendar.py   # Holiday data for predictions
 │
 ├── data/
 │   ├── Port_Distances.csv        # 15,000+ port-pair distances
 │   └── PortWatch_ports_database.csv
 │
+├── docs/                         # Documentation
+│   ├── documentation.md          # Technical documentation
+│   ├── raw_data_spec.md          # Data specifications
+│   ├── voyage_RECOMMENDATION_report.md
+│   └── images/                   # Documentation images
+│
+├── models/
+│   └── model_info.json           # Trained model metadata
+│
 ├── notebooks/
 │   ├── analysis.ipynb            # Exploratory analysis
 │   └── ml_training.ipynb         # Model training
 │
+├── scripts/
+│   ├── run_optimizer.py          # Run portfolio optimization
+│   └── train_model.py            # Train ML models
+│
+├── tests/
+│   └── bunker_optimization/      # Bunker optimization tests
+│
+├── Procfile                      # Deployment configuration
 ├── start_dev.bat                 # Windows dev server script
 ├── start_dev.sh                  # Unix dev server script
 └── requirements.txt              # Python dependencies
