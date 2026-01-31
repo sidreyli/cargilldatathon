@@ -7,7 +7,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://web-production-ce81e.up.railway.app/api/:path*"
+      "destination": "https://web-production-dd2b5.up.railway.app/api/:path*"
     }
   ]
 }
