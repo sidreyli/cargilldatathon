@@ -5,6 +5,7 @@ FROM python:3.11-slim
 RUN apt-get update && apt-get install -y \
     libgomp1 \
     libopenblas-dev \
+    dos2unix \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -19,12 +20,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
+# Fix line endings and make executable
+RUN dos2unix start.sh && chmod +x start.sh
+
 # Expose port (Railway sets PORT env var)
 EXPOSE 8000
-
-# Copy and setup startup script
-COPY start.sh .
-RUN chmod +x start.sh
 
 # Run the application
 CMD ["./start.sh"]
