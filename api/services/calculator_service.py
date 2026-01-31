@@ -201,6 +201,7 @@ class CalculatorService:
 
         # Cached results
         self._portfolio_cache: Optional[dict] = None
+        self._portfolio_ml_cache: Optional[dict] = None  # ML-adjusted portfolio
         self._all_voyages_cache: Optional[List[dict]] = None
         self._bunker_sensitivity_cache: Optional[List[dict]] = None
         self._delay_sensitivity_cache: Optional[List[dict]] = None
@@ -257,16 +258,60 @@ class CalculatorService:
     def _compute_portfolio(self):
         t = time.perf_counter()
         logger.info("Computing optimal portfolio (full optimization)...")
-        full_result = self.full_optimizer.optimize_full_portfolio(
+
+        # Baseline portfolio (no ML delays) - get top 3
+        full_results = self.full_optimizer.optimize_full_portfolio(
             cargill_vessels=self.cargill_vessels,
             market_vessels=self.market_vessels,
             cargill_cargoes=self.cargill_cargoes,
             market_cargoes=self.market_cargoes,
             target_tce=18000,
             dual_speed_mode=True,
+            top_n=3,
         )
-        self._portfolio_cache = _full_portfolio_to_dict(full_result, self.vessels_map, self.cargoes_map)
-        logger.info("Portfolio computed in %.2fs", time.perf_counter() - t)
+        # Convert all portfolios to dict format
+        if full_results:
+            portfolios = [_full_portfolio_to_dict(r, self.vessels_map, self.cargoes_map) for r in full_results]
+            self._portfolio_cache = {"portfolios": portfolios}
+        else:
+            self._portfolio_cache = {"portfolios": []}
+        logger.info("Baseline portfolio computed in %.2fs (%d portfolios)", time.perf_counter() - t, len(full_results))
+
+        # ML-adjusted portfolio (with predicted port delays)
+        t2 = time.perf_counter()
+        logger.info("Computing ML-adjusted portfolio...")
+        try:
+            # Get ML delays and convert to port_delays dict
+            ml_delays = get_ml_port_delays(self.cargill_cargoes)
+            port_delays_dict = {
+                port: info.get('predicted_delay', info.get('predicted_delay_days', 0))
+                for port, info in ml_delays.items()
+            }
+
+            if port_delays_dict:
+                ml_results = self.full_optimizer.optimize_full_portfolio(
+                    cargill_vessels=self.cargill_vessels,
+                    market_vessels=self.market_vessels,
+                    cargill_cargoes=self.cargill_cargoes,
+                    market_cargoes=self.market_cargoes,
+                    target_tce=18000,
+                    dual_speed_mode=True,
+                    port_delays=port_delays_dict,
+                    top_n=3,
+                )
+                if ml_results:
+                    portfolios = [_full_portfolio_to_dict(r, self.vessels_map, self.cargoes_map) for r in ml_results]
+                    self._portfolio_ml_cache = {"portfolios": portfolios}
+                else:
+                    self._portfolio_ml_cache = self._portfolio_cache
+                logger.info("ML-adjusted portfolio computed in %.2fs (%d portfolios)", time.perf_counter() - t2, len(ml_results))
+            else:
+                # No ML delays available, use baseline
+                self._portfolio_ml_cache = self._portfolio_cache
+                logger.info("No ML delays available, using baseline portfolio")
+        except Exception as e:
+            logger.error("ML portfolio computation failed: %s", e)
+            self._portfolio_ml_cache = self._portfolio_cache
 
     def _compute_all_voyages(self):
         t = time.perf_counter()
@@ -395,6 +440,10 @@ class CalculatorService:
 
     def get_portfolio(self) -> dict:
         return self._portfolio_cache or {}
+
+    def get_portfolio_with_ml_delays(self) -> dict:
+        """Get portfolio optimized with ML-predicted port delays."""
+        return self._portfolio_ml_cache or self._portfolio_cache or {}
 
     def get_all_voyages(self) -> List[dict]:
         return self._all_voyages_cache or []

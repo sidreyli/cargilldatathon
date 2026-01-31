@@ -23,7 +23,11 @@
       "Bash(git checkout:*)",
       "Bash(git cherry-pick:*)",
       "Bash(git reset:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(npm run dev:*)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)",
+      "Bash(curl:*)"
     ]
   }
 }

@@ -10,11 +10,12 @@ import type { TabId } from './types';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
+  const [portDisruption, setPortDisruption] = useState(false);
 
   const renderPage = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <DashboardPage />;
+        return <DashboardPage portDisruption={portDisruption} />;
       case 'voyages':
         return <VoyagesPage />;
       case 'scenarios':
@@ -27,7 +28,12 @@ export default function App() {
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       <Header />
-      <TabNav activeTab={activeTab} onTabChange={setActiveTab} />
+      <TabNav
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        portDisruption={portDisruption}
+        onPortDisruptionChange={setPortDisruption}
+      />
       <div className="flex flex-1 overflow-hidden">
         <main className="flex-1 overflow-y-auto bg-cloud p-6">
           {renderPage()}

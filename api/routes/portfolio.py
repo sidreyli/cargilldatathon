@@ -17,8 +17,14 @@ def get_cargoes():
 
 
 @router.get("/portfolio/optimize")
-def optimize_portfolio():
-    """Get cached optimal vessel-cargo assignments."""
+def optimize_portfolio(use_ml_delays: bool = False):
+    """Get cached optimal vessel-cargo assignments.
+
+    Args:
+        use_ml_delays: If True, return portfolio adjusted for ML-predicted port delays.
+    """
+    if use_ml_delays:
+        return calculator_service.get_portfolio_with_ml_delays()
     return calculator_service.get_portfolio()
 
 

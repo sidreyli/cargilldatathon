@@ -163,14 +163,26 @@ function AssignmentCard({ vessel, cargo, vesselType, cargoType, profit, tce, day
   );
 }
 
-export default function DashboardPage() {
-  // Fetch from API
-  const { data: apiPortfolio, isLoading: loadingPortfolio } = usePortfolio();
+interface DashboardPageProps {
+  portDisruption: boolean;
+}
+
+export default function DashboardPage({ portDisruption }: DashboardPageProps) {
+  const [selectedPortfolioIdx, setSelectedPortfolioIdx] = useState(0);
+
+  // Reset to first portfolio when switching disruption mode
+  useEffect(() => {
+    setSelectedPortfolioIdx(0);
+  }, [portDisruption]);
+
+  // Fetch from API - pass portDisruption to use ML delays
+  const { data: apiPortfolios, isLoading: loadingPortfolio } = usePortfolio(portDisruption);
   const { data: apiVessels } = useVessels();
   const { data: apiCargoes } = useCargoes();
 
-  // Use API data if available, otherwise fall back to mock
-  const portfolio = apiPortfolio || mockPortfolio;
+  // usePortfolio returns an array of portfolios
+  const portfolios = apiPortfolios || [mockPortfolio];
+  const portfolio = portfolios[selectedPortfolioIdx] || portfolios[0] || mockPortfolio;
   const vessels = apiVessels || mockVessels;
   const cargoes = apiCargoes || mockCargoes;
 
@@ -196,6 +208,29 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 max-w-[1400px]">
+      {/* Portfolio Selector - Top 3 */}
+      {portfolios.length > 1 && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-[#6B7B8D] mr-2">Portfolio Options:</span>
+          {portfolios.slice(0, 3).map((p: any, idx: number) => (
+            <button
+              key={idx}
+              onClick={() => setSelectedPortfolioIdx(idx)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                selectedPortfolioIdx === idx
+                  ? 'bg-[#134074] text-white shadow-md'
+                  : 'bg-white border border-[#DCE3ED] text-[#6B7B8D] hover:border-[#134074] hover:text-[#134074]'
+              }`}
+            >
+              <span className="font-bold">#{idx + 1}</span>
+              <span className="ml-2 text-xs opacity-80">
+                {formatCurrency(p.total_profit || 0)}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* KPI Row */}
       <div className="grid grid-cols-4 gap-4">
         <KPICard idx={0} icon={<TrendingUp className="w-4 h-4" />} label="Total Portfolio Profit" value={formatCurrency(profit)} accent="#0FA67F" />

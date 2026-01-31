@@ -479,6 +479,7 @@ class FullPortfolioOptimizer:
         use_eco_speed: bool = True,
         target_tce: float = 18000,  # Target profit/day for calculations
         dual_speed_mode: bool = False,
+        port_delays: Dict[str, float] = None,  # Port name -> extra delay days
     ) -> pd.DataFrame:
         """
         Calculate voyage economics for VALID vessel-cargo combinations only.
@@ -490,8 +491,12 @@ class FullPortfolioOptimizer:
 
         NOT valid:
         - Market vessel → Market cargo (not our business model)
+
+        Args:
+            port_delays: Dict mapping port names to extra delay days (e.g., from ML predictions)
         """
         results = []
+        port_delays = port_delays or {}
 
         # Determine which speeds to calculate
         if dual_speed_mode:
@@ -499,13 +504,18 @@ class FullPortfolioOptimizer:
         else:
             speed_options = [use_eco_speed]
 
+        def get_port_delay(cargo: Cargo) -> float:
+            """Get extra delay for cargo's discharge port."""
+            return port_delays.get(cargo.discharge_port, 0)
+
         # 1. Cargill vessels → Cargill cargoes
         for vessel in cargill_vessels:
             for cargo in cargill_cargoes:
+                extra_delay = get_port_delay(cargo)
                 for eco_speed in speed_options:
                     option = self._calculate_option(
                         vessel, cargo, "cargill", "cargill",
-                        eco_speed, target_tce
+                        eco_speed, target_tce, extra_delay
                     )
                     speed_type = 'eco' if eco_speed else 'warranted'
                     results.append(self._option_to_dict(option, speed_type))
@@ -513,10 +523,11 @@ class FullPortfolioOptimizer:
         # 2. Cargill vessels → Market cargoes
         for vessel in cargill_vessels:
             for cargo in market_cargoes:
+                extra_delay = get_port_delay(cargo)
                 for eco_speed in speed_options:
                     option = self._calculate_option(
                         vessel, cargo, "cargill", "market",
-                        eco_speed, target_tce
+                        eco_speed, target_tce, extra_delay
                     )
                     speed_type = 'eco' if eco_speed else 'warranted'
                     results.append(self._option_to_dict(option, speed_type))
@@ -524,10 +535,11 @@ class FullPortfolioOptimizer:
         # 3. Market vessels → Cargill cargoes ONLY
         for vessel in market_vessels:
             for cargo in cargill_cargoes:
+                extra_delay = get_port_delay(cargo)
                 for eco_speed in speed_options:
                     option = self._calculate_option(
                         vessel, cargo, "market", "cargill",
-                        eco_speed, target_tce
+                        eco_speed, target_tce, extra_delay
                     )
                     speed_type = 'eco' if eco_speed else 'warranted'
                     results.append(self._option_to_dict(option, speed_type))
@@ -569,6 +581,7 @@ class FullPortfolioOptimizer:
         cargo_type: str,
         use_eco_speed: bool,
         target_tce: float,
+        extra_port_delay: float = 0,
     ) -> VoyageOption:
         """Calculate a single voyage option with all economics."""
 
@@ -599,7 +612,8 @@ class FullPortfolioOptimizer:
                 )
 
             result = self.calculator.calculate_voyage(
-                vessel, temp_cargo, use_eco_speed=use_eco_speed
+                vessel, temp_cargo, use_eco_speed=use_eco_speed,
+                extra_port_delay_days=extra_port_delay
             )
 
             # Calculate economics based on vessel/cargo type combination
@@ -745,6 +759,7 @@ class FullPortfolioOptimizer:
         target_tce: float = 18000,
         dual_speed_mode: bool = False,
         top_n: int = 1,
+        port_delays: Dict[str, float] = None,  # Port name -> extra delay days
     ) -> List[FullPortfolioResult]:
         """
         Optimize the full portfolio using JOINT OPTIMIZATION.
@@ -760,13 +775,17 @@ class FullPortfolioOptimizer:
         4. Pick the combination with highest total profit
 
         Hard constraint: Every Cargill cargo MUST be covered by exactly one vessel.
+
+        Args:
+            port_delays: Dict mapping port names to extra delay days (e.g., from ML predictions)
         """
 
         # Step 1: Calculate all options
         all_options = self.calculate_all_options(
             cargill_vessels, market_vessels,
             cargill_cargoes, market_cargoes,
-            use_eco_speed, target_tce, dual_speed_mode
+            use_eco_speed, target_tce, dual_speed_mode,
+            port_delays=port_delays
         )
 
         # Step 2: Filter to valid options (can make laycan)

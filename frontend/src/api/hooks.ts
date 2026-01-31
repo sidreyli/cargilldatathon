@@ -17,11 +17,11 @@ export function useCargoes() {
   });
 }
 
-export function usePortfolio() {
+export function usePortfolio(useMLDelays: boolean = false) {
   return useQuery({
-    queryKey: ['portfolio'],
+    queryKey: ['portfolio', useMLDelays],
     queryFn: async () => {
-      const raw = await api.getPortfolio();
+      const raw = await api.getPortfolio(useMLDelays);
       // Handle both old format (single portfolio) and new format (list of portfolios)
       const portfolios = raw.portfolios || [raw];
 

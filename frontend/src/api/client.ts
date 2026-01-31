@@ -19,7 +19,8 @@ async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   getVessels: () => fetchJson<any[]>('/vessels'),
   getCargoes: () => fetchJson<any[]>('/cargoes'),
-  getPortfolio: () => fetchJson<any>('/portfolio/optimize'),
+  getPortfolio: (useMLDelays: boolean = false) =>
+    fetchJson<any>(`/portfolio/optimize?use_ml_delays=${useMLDelays}`),
   getAllVoyages: () => fetchJson<any[]>('/portfolio/all-voyages'),
 
   // Voyage
