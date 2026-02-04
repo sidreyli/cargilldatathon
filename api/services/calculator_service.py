@@ -532,7 +532,8 @@ class CalculatorService:
 
     # ─── Public API ──────────────────────────────────────────
 
-    def get_vessels(self) -> List[dict]:
+    def get_vessels(self, include_market: bool = False) -> List[dict]:
+        vessels = self.cargill_vessels + self.market_vessels if include_market else self.cargill_vessels
         return [
             {
                 "name": v.name, "dwt": v.dwt, "hire_rate": v.hire_rate,
@@ -540,12 +541,18 @@ class CalculatorService:
                 "speed_ballast": v.speed_ballast, "speed_ballast_eco": v.speed_ballast_eco,
                 "current_port": v.current_port, "etd": v.etd,
                 "bunker_rob_vlsfo": v.bunker_rob_vlsfo, "bunker_rob_mgo": v.bunker_rob_mgo,
+                "fuel_laden_vlsfo": v.fuel_laden_vlsfo, "fuel_laden_mgo": v.fuel_laden_mgo,
+                "fuel_ballast_vlsfo": v.fuel_ballast_vlsfo, "fuel_ballast_mgo": v.fuel_ballast_mgo,
+                "fuel_laden_eco_vlsfo": v.fuel_laden_eco_vlsfo, "fuel_laden_eco_mgo": v.fuel_laden_eco_mgo,
+                "fuel_ballast_eco_vlsfo": v.fuel_ballast_eco_vlsfo, "fuel_ballast_eco_mgo": v.fuel_ballast_eco_mgo,
+                "port_idle_mgo": v.port_idle_mgo, "port_working_mgo": v.port_working_mgo,
                 "is_cargill": v.is_cargill,
             }
-            for v in self.cargill_vessels
+            for v in vessels
         ]
 
-    def get_cargoes(self) -> List[dict]:
+    def get_cargoes(self, include_market: bool = False) -> List[dict]:
+        cargoes = self.cargill_cargoes + self.market_cargoes if include_market else self.cargill_cargoes
         return [
             {
                 "name": c.name, "customer": c.customer, "commodity": c.commodity,
@@ -557,7 +564,7 @@ class CalculatorService:
                 "port_cost_load": c.port_cost_load, "port_cost_discharge": c.port_cost_discharge,
                 "commission": c.commission, "is_cargill": c.is_cargill,
             }
-            for c in self.cargill_cargoes
+            for c in cargoes
         ]
 
     def get_portfolio(self, use_ml_delays: bool = False) -> dict:
