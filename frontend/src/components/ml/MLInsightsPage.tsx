@@ -18,7 +18,19 @@ const featureLabels: Record<string, string> = {
   portcalls_dry_bulk_rolling30_std: '30d Port Calls (std)',
   cny_proximity_days: 'CNY Proximity',
   import_dry_bulk_momentum: 'Import Momentum',
+  is_china: 'China Port',
+  portcalls_dry_bulk_rolling14_std: '14d Port Calls (std)',
+  portcalls_dry_bulk_rolling7_std: '7d Port Calls (std)',
+  portcalls_dry_bulk_lag7: '7d Port Calls (lag)',
+  is_india: 'India Port',
 };
+
+const excludedFeatures = new Set([
+  'feat_week_of_year', 'portcalls_dry_bulk_lag30', 'feat_month',
+  'portcalls_dry_bulk_lag14', 'feat_day_of_week', 'is_cny',
+  'is_monsoon_india', 'feat_quarter', 'feat_is_weekend',
+  'is_golden_week', 'is_diwali',
+]);
 
 const impactColors: Record<string, string> = { high: '#E74C5E', medium: '#F5A623', low: '#0FA67F' };
 
@@ -38,17 +50,19 @@ export default function MLInsightsPage() {
   const modelInfo = apiModelInfo || mockModelInfo;
   const portDelays = apiPortDelays || mockPortDelays;
 
-  const shapData = modelInfo.feature_importance.map((f: { feature: string; importance: number }) => ({
-    name: featureLabels[f.feature] || f.feature,
-    importance: f.importance,
-  }));
+  const shapData = modelInfo.feature_importance
+    .filter((f: { feature: string; importance: number }) => !excludedFeatures.has(f.feature))
+    .map((f: { feature: string; importance: number }) => ({
+      name: featureLabels[f.feature] || f.feature,
+      importance: f.importance,
+    }));
   return (
     <div className="space-y-5 max-w-[1280px]">
       {/* Model metrics row */}
       <div className="grid grid-cols-4 gap-4">
         {[
-          { label: 'MAE', value: `${modelInfo.metrics.mae} days`, sub: '~6.1 hours', icon: <Activity className="w-4 h-4" />, color: '#0FA67F' },
-          { label: 'RMSE', value: `${modelInfo.metrics.rmse} days`, sub: '~3 hours', icon: <Gauge className="w-4 h-4" />, color: '#1B6CA8' },
+          { label: 'MAE', value: `${Number(modelInfo.metrics.mae).toFixed(4)} days`, sub: '~6.1 hours', icon: <Activity className="w-4 h-4" />, color: '#0FA67F' },
+          { label: 'RMSE', value: `${Number(modelInfo.metrics.rmse).toFixed(4)} days`, sub: '~3 hours', icon: <Gauge className="w-4 h-4" />, color: '#1B6CA8' },
           { label: 'Within 1 Day', value: `${(modelInfo.metrics.within_1_day * 100).toFixed(2)}%`, sub: 'accuracy', icon: <Award className="w-4 h-4" />, color: '#0FA67F' },
           { label: 'Model', value: modelInfo.model_type, sub: `Trained ${modelInfo.training_date}`, icon: <Brain className="w-4 h-4" />, color: '#134074' },
         ].map((m, i) => (
@@ -71,11 +85,11 @@ export default function MLInsightsPage() {
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
           className="col-span-3 bg-white rounded-xl border border-[#DCE3ED] shadow-card p-5">
           <h3 className="text-sm font-semibold text-navy-900 mb-3">SHAP Feature Importance</h3>
-          <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={shapData} layout="vertical" margin={{ left: 10 }}>
+          <ResponsiveContainer width="100%" height={340}>
+            <BarChart data={shapData} layout="vertical" margin={{ top: 10, right: 20, bottom: 10, left: 30 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#DCE3ED" horizontal={false} />
               <XAxis type="number" tick={{ fontSize: 10, fill: '#6B7B8D' }} />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#0B2545' }} width={150} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#0B2545' }} width={170} interval={0} />
               <Tooltip formatter={(v: number) => v.toFixed(3)} />
               <Bar dataKey="importance" radius={[0, 4, 4, 0]} barSize={18}>
                 {shapData.map((_: unknown, i: number) => (
