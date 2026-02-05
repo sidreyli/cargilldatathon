@@ -22,6 +22,7 @@ from src.freight_calculator import (
     Vessel, Cargo, VoyageResult,
     create_cargill_vessels, create_cargill_cargoes,
     create_market_vessels, create_market_cargoes, create_bunker_prices,
+    apply_estimated_freight_rate,
 )
 from src.portfolio_optimizer import (
     PortfolioOptimizer, ScenarioAnalyzer, PortfolioResult,
@@ -324,8 +325,13 @@ class CalculatorService:
 
         for v in all_vessels:
             for c in all_cargoes:
+                # Skip invalid market-vessel -> market-cargo combinations
+                if not v.is_cargill and not c.is_cargill:
+                    continue
                 try:
-                    result = self.calculator.calculate_voyage(v, c, use_eco_speed=True)
+                    # Apply estimated freight rate for market cargoes with rate=0
+                    effective_cargo = apply_estimated_freight_rate(c)
+                    result = self.calculator.calculate_voyage(v, effective_cargo, use_eco_speed=True)
                     voyage_dict = _voyage_to_dict(v, c, result, "eco")
                     # Add vessel and cargo type info
                     voyage_dict["vessel_type"] = "cargill" if v.is_cargill else "market"
@@ -354,17 +360,23 @@ class CalculatorService:
 
             for v in all_vessels:
                 for c in all_cargoes:
+                    # Skip invalid market-vessel -> market-cargo combinations
+                    if not v.is_cargill and not c.is_cargill:
+                        continue
                     try:
+                        # Apply estimated freight rate for market cargoes with rate=0
+                        effective_cargo = apply_estimated_freight_rate(c)
+
                         # Determine port-specific delay
                         delay = 0.0
-                        port_name = c.discharge_port.upper()
+                        port_name = effective_cargo.discharge_port.upper()
                         for key, value in port_delays_dict.items():
                             if key.upper() in port_name or port_name in key.upper():
                                 delay = value
                                 break
 
                         result = self.calculator.calculate_voyage(
-                            v, c, use_eco_speed=True, extra_port_delay_days=delay
+                            v, effective_cargo, use_eco_speed=True, extra_port_delay_days=delay
                         )
                         voyage_dict = _voyage_to_dict(v, c, result, "eco")
                         voyage_dict["vessel_type"] = "cargill" if v.is_cargill else "market"
@@ -590,8 +602,10 @@ class CalculatorService:
         c = self.cargoes_map.get(cargo_name)
         if not v or not c:
             return {"error": f"Vessel or cargo not found: {vessel_name}, {cargo_name}"}
+        # Apply estimated freight rate for market cargoes with rate=0
+        effective_cargo = apply_estimated_freight_rate(c)
         result = self.calculator.calculate_voyage(
-            v, c, use_eco_speed=use_eco,
+            v, effective_cargo, use_eco_speed=use_eco,
             extra_port_delay_days=delay,
             bunker_price_adjustment=bunker_adj,
         )

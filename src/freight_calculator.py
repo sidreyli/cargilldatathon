@@ -1981,6 +1981,59 @@ def create_market_cargoes() -> List[Cargo]:
     return cargoes
 
 
+# =============================================================================
+# FREIGHT RATE ESTIMATION HELPERS
+# =============================================================================
+
+# FFA-based estimated rates for market cargoes with freight_rate == 0
+_BRAZIL_ORIGINS = {"TUBARAO", "PONTA DA MADEIRA", "ITAGUAI"}
+_AUSTRALIA_ORIGINS = {"HEDLAND", "DAMPIER"}
+
+
+def estimate_freight_rate(cargo: Cargo) -> float:
+    """Return an estimated freight rate for a cargo.
+
+    If the cargo already has a non-zero freight rate, return it as-is.
+    Otherwise estimate using FFA benchmarks:
+      - Brazil origins (C3): $21/ton
+      - Australia origins (C5): $9/ton
+      - All others: $15/ton
+    """
+    if cargo.freight_rate != 0:
+        return cargo.freight_rate
+
+    port = cargo.load_port.upper()
+    if any(origin in port for origin in _BRAZIL_ORIGINS):
+        return 21.0
+    if any(origin in port for origin in _AUSTRALIA_ORIGINS):
+        return 9.0
+    return 15.0
+
+
+def apply_estimated_freight_rate(cargo: Cargo) -> Cargo:
+    """Return a new Cargo with an estimated freight rate applied.
+
+    If the cargo already has a non-zero freight rate, return it unchanged.
+    """
+    if cargo.freight_rate != 0:
+        return cargo
+
+    rate = estimate_freight_rate(cargo)
+    return Cargo(
+        name=cargo.name, customer=cargo.customer, commodity=cargo.commodity,
+        quantity=cargo.quantity, quantity_tolerance=cargo.quantity_tolerance,
+        laycan_start=cargo.laycan_start, laycan_end=cargo.laycan_end,
+        freight_rate=rate,
+        load_port=cargo.load_port, load_rate=cargo.load_rate,
+        load_turn_time=cargo.load_turn_time,
+        discharge_port=cargo.discharge_port, discharge_rate=cargo.discharge_rate,
+        discharge_turn_time=cargo.discharge_turn_time,
+        port_cost_load=cargo.port_cost_load, port_cost_discharge=cargo.port_cost_discharge,
+        commission=cargo.commission, is_cargill=cargo.is_cargill,
+        half_freight_threshold=cargo.half_freight_threshold,
+    )
+
+
 def create_bunker_prices() -> BunkerPrices:
     """Create bunker prices from the datathon forward curve (March 2026 values)."""
     
