@@ -61,8 +61,8 @@ export default function MLInsightsPage() {
       {/* Model metrics row */}
       <div className="grid grid-cols-4 gap-4">
         {[
-          { label: 'MAE', value: `${Number(modelInfo.metrics.mae).toFixed(4)} days`, sub: '~6.1 hours', icon: <Activity className="w-4 h-4" />, color: '#0FA67F' },
-          { label: 'RMSE', value: `${Number(modelInfo.metrics.rmse).toFixed(4)} days`, sub: '~3 hours', icon: <Gauge className="w-4 h-4" />, color: '#1B6CA8' },
+          { label: 'MAE', value: `${Number(modelInfo.metrics.mae).toFixed(4)} days`, sub: `~${(Number(modelInfo.metrics.mae) * 24).toFixed(1)} hours`, icon: <Activity className="w-4 h-4" />, color: '#0FA67F' },
+          { label: 'RMSE', value: `${Number(modelInfo.metrics.rmse).toFixed(4)} days`, sub: `~${(Number(modelInfo.metrics.rmse) * 24).toFixed(1)} hours`, icon: <Gauge className="w-4 h-4" />, color: '#1B6CA8' },
           { label: 'Within 1 Day', value: `${(modelInfo.metrics.within_1_day * 100).toFixed(2)}%`, sub: 'accuracy', icon: <Award className="w-4 h-4" />, color: '#0FA67F' },
           { label: 'Model', value: modelInfo.model_type, sub: `Trained ${modelInfo.training_date}`, icon: <Brain className="w-4 h-4" />, color: '#134074' },
         ].map((m, i) => (
