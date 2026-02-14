@@ -104,7 +104,7 @@ export default function ScenariosPage() {
   return (
     <div className="space-y-5 max-w-[1280px]">
       {/* Split View: Bunker (Left) | China Delay (Right) */}
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* LEFT COLUMN - BUNKER PRICE SENSITIVITY */}
         <div className="space-y-5">
           {/* Bunker Price Slider */}

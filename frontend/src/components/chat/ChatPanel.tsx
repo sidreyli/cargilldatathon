@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, Send, Loader2, Sparkles, Wifi, WifiOff } from 'lucide-react';
+import { MessageSquare, Send, Loader2, Sparkles, Wifi, WifiOff, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { ChatMessage } from '../../types';
 import { mockChatMessages, suggestedPrompts } from '../../data/mockData';
@@ -29,7 +29,11 @@ function getMockResponse(input: string): string {
   return "I can help analyze vessel assignments, run scenarios, compare voyages, and explain the arbitrage strategy. Try asking about the optimal assignment, market vessel hires, or a specific what-if scenario!";
 }
 
-export default function ChatPanel() {
+interface ChatPanelProps {
+  onClose?: () => void;
+}
+
+export default function ChatPanel({ onClose }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>(mockChatMessages);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -110,7 +114,7 @@ export default function ChatPanel() {
   }, [useApi, messages, sendToApi]);
 
   return (
-    <aside className="w-[380px] border-l border-border bg-white flex flex-col flex-shrink-0">
+    <aside className="w-full md:w-[380px] border-l border-border bg-white flex flex-col flex-shrink-0 h-full">
       {/* Header */}
       <div className="gradient-chat text-white px-4 py-3 flex items-center gap-2.5">
         <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center">
@@ -124,6 +128,11 @@ export default function ChatPanel() {
           <div className="flex items-center gap-1 text-[10px]" title={useApi ? 'Connected to API' : 'Using mock data'}>
             {useApi ? <Wifi className="w-3 h-3 text-teal-300" /> : <WifiOff className="w-3 h-3 text-sky-300/50" />}
           </div>
+        )}
+        {onClose && (
+          <button onClick={onClose} className="md:hidden w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center ml-1">
+            <X className="w-4 h-4" />
+          </button>
         )}
       </div>
 

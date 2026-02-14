@@ -59,7 +59,7 @@ export default function MLInsightsPage() {
   return (
     <div className="space-y-5 max-w-[1280px]">
       {/* Model metrics row */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         {[
           { label: 'MAE', value: `${Number(modelInfo.metrics.mae).toFixed(4)} days`, sub: `~${(Number(modelInfo.metrics.mae) * 24).toFixed(1)} hours`, icon: <Activity className="w-4 h-4" />, color: '#0FA67F' },
           { label: 'RMSE', value: `${Number(modelInfo.metrics.rmse).toFixed(4)} days`, sub: `~${(Number(modelInfo.metrics.rmse) * 24).toFixed(1)} hours`, icon: <Gauge className="w-4 h-4" />, color: '#1B6CA8' },
@@ -80,10 +80,10 @@ export default function MLInsightsPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-5 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-5">
         {/* SHAP chart - 3 cols */}
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-          className="col-span-3 bg-white rounded-xl border border-[#DCE3ED] shadow-card p-5">
+          className="col-span-1 md:col-span-3 bg-white rounded-xl border border-[#DCE3ED] shadow-card p-5">
           <h3 className="text-sm font-semibold text-navy-900 mb-3">SHAP Feature Importance</h3>
           <ResponsiveContainer width="100%" height={340}>
             <BarChart data={shapData} layout="vertical" margin={{ top: 10, right: 20, bottom: 10, left: 30 }}>
@@ -105,7 +105,7 @@ export default function MLInsightsPage() {
 
         {/* Port delay cards - 2 cols */}
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
-          className="col-span-2 bg-white rounded-xl border border-[#DCE3ED] shadow-card p-5 flex flex-col">
+          className="col-span-1 md:col-span-2 bg-white rounded-xl border border-[#DCE3ED] shadow-card p-5 flex flex-col">
           <h3 className="text-sm font-semibold text-navy-900 mb-3">Predicted Port Delays</h3>
           <div className="flex-1 space-y-2.5 overflow-y-auto">
             {portDelays.sort((a, b) => b.predicted_delay_days - a.predicted_delay_days).map((pd) => {
@@ -155,19 +155,20 @@ export default function MLInsightsPage() {
           <h3 className="text-sm font-semibold text-navy-900">Seasonal Risk Calendar (2026)</h3>
         </div>
         {/* Month header */}
-        <div className="grid grid-cols-[140px_repeat(12,1fr)] gap-0 mb-1">
+        <div className="overflow-x-auto">
+        <div className="grid grid-cols-[100px_repeat(12,1fr)] md:grid-cols-[140px_repeat(12,1fr)] gap-0 mb-1 min-w-[600px]">
           <div />
           {months.map(m => (
             <div key={m} className="text-[10px] text-text-secondary font-medium text-center">{m}</div>
           ))}
         </div>
         {/* Event rows */}
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 min-w-[600px]">
           {mockSeasonalEvents.map((evt) => {
             const [s, e] = getMonthSpan(evt.start, evt.end);
             return (
-              <div key={evt.name} className="grid grid-cols-[140px_repeat(12,1fr)] gap-0 items-center">
-                <div className="text-[11px] font-medium text-navy-900 pr-2 truncate" title={evt.name}>{evt.name}</div>
+              <div key={evt.name} className="grid grid-cols-[100px_repeat(12,1fr)] md:grid-cols-[140px_repeat(12,1fr)] gap-0 items-center">
+                <div className="text-[10px] md:text-[11px] font-medium text-navy-900 pr-2 truncate" title={evt.name}>{evt.name}</div>
                 {months.map((_, mi) => {
                   const inRange = s <= e ? (mi >= s && mi <= e) : (mi >= s || mi <= e);
                   return (
@@ -187,6 +188,7 @@ export default function MLInsightsPage() {
               </div>
             );
           })}
+        </div>
         </div>
         <div className="flex gap-4 mt-3 text-[10px] text-text-secondary">
           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-coral-500/20 inline-block" /> High Impact</span>

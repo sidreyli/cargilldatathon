@@ -217,11 +217,11 @@ export default function DashboardPage({ useMLDelays = false }: DashboardPageProp
           animate={{ opacity: 1, y: 0 }}
           className="bg-white rounded-xl border border-[#DCE3ED] shadow-[0_1px_3px_rgba(11,37,69,0.08)] p-3"
         >
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
             <span className="text-xs font-semibold uppercase tracking-wide text-[#6B7B8D] whitespace-nowrap">
               Portfolio Options
             </span>
-            <div className="flex gap-1 bg-[#F1F5F9] rounded-lg p-1 flex-1">
+            <div className="flex flex-wrap gap-1 bg-[#F1F5F9] rounded-lg p-1 flex-1">
               {portfolios.map((p: any, i: number) => (
                 <button
                   key={i}
@@ -251,7 +251,7 @@ export default function DashboardPage({ useMLDelays = false }: DashboardPageProp
       )}
 
       {/* KPI Row */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <KPICard idx={0} icon={<TrendingUp className="w-4 h-4" />} label="Total Portfolio Profit" value={formatCurrency(profit)} accent="#0FA67F" />
         <KPICard idx={1} icon={<DollarSign className="w-4 h-4" />} label="Avg TCE" value={formatCurrencyFull(tce)} sub="/day" accent="#1B6CA8" />
         <KPICard idx={2} icon={<Ship className="w-4 h-4" />} label="Cargill Fleet Deployed" value={`${cargillAssignments}`} sub="vessels" accent="#134074" />
@@ -288,7 +288,7 @@ export default function DashboardPage({ useMLDelays = false }: DashboardPageProp
       </motion.div>
 
       {/* Two Column Layout: Cargill Fleet + Market Hires */}
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
         {/* Cargill Fleet Assignments */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }} 
@@ -398,7 +398,7 @@ export default function DashboardPage({ useMLDelays = false }: DashboardPageProp
           <h3 className="text-sm font-bold text-[#0B2545]">Complete Assignment Matrix</h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-xs md:text-sm">
             <thead className="bg-[#F8FAFC]">
               <tr className="border-b border-[#DCE3ED]">
                 <th className="px-4 py-3 text-left text-xs font-semibold text-[#6B7B8D] uppercase tracking-wide">Vessel</th>

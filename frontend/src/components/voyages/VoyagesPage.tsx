@@ -131,7 +131,7 @@ export default function VoyagesPage({ useMLDelays }: { useMLDelays: boolean }) {
                   placeholder="Search vessel or cargo..."
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
-                  className="text-xs pl-8 pr-3 py-1.5 border border-border rounded-lg bg-cloud/50 focus:outline-none focus:ring-1 focus:ring-ocean-300 w-52"
+                  className="text-xs pl-8 pr-3 py-1.5 border border-border rounded-lg bg-cloud/50 focus:outline-none focus:ring-1 focus:ring-ocean-300 w-full md:w-52"
                 />
               </div>
               <select value={vesselTypeFilter} onChange={e => setVesselTypeFilter(e.target.value as any)} className="text-xs px-2.5 py-1.5 border border-border rounded-lg bg-cloud/50 focus:outline-none focus:ring-1 focus:ring-ocean-300">
@@ -235,7 +235,7 @@ export default function VoyagesPage({ useMLDelays }: { useMLDelays: boolean }) {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 16 }}
-            className="grid grid-cols-2 gap-5"
+            className="grid grid-cols-1 md:grid-cols-2 gap-5"
           >
             {/* Radar */}
             <div className="bg-white rounded-xl border border-[#DCE3ED] shadow-card p-5">

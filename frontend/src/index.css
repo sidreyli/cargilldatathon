@@ -51,6 +51,14 @@
 }
 
 @layer utilities {
+  /* Hide scrollbar on mobile chat overlay */
+  .mobile-chat-overlay {
+    -webkit-overflow-scrolling: touch;
+  }
+  .mobile-chat-overlay::-webkit-scrollbar {
+    display: none;
+  }
+
   .animate-count {
     animation: countUp 1.2s ease-out forwards;
   }

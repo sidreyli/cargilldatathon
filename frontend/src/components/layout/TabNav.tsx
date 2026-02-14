@@ -17,26 +17,26 @@ const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
 
 export default function TabNav({ activeTab, onTabChange, useMLDelays, onToggleMLDelays }: TabNavProps) {
   return (
-    <nav className="border-b border-border bg-white px-6">
-      <div className="flex gap-1 items-center">
+    <nav className="border-b border-border bg-white px-3 md:px-6">
+      <div className="flex flex-wrap gap-1 items-center overflow-x-auto">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            className={`flex items-center gap-1.5 md:gap-2 px-2.5 md:px-4 py-2.5 md:py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
               activeTab === tab.id
                 ? 'text-ocean-600 border-ocean-500'
                 : 'text-text-secondary border-transparent hover:text-navy-700 hover:border-border'
             }`}
           >
             {tab.icon}
-            {tab.label}
+            <span className="hidden md:inline">{tab.label}</span>
           </button>
         ))}
 
         {/* ML Port Disruption Toggle */}
-        <div className="ml-4 flex items-center gap-3 py-2">
-          <span className="text-xs font-medium text-[#6B7B8D]">Port Disruption</span>
+        <div className="ml-2 md:ml-4 flex items-center gap-2 md:gap-3 py-2">
+          <span className="text-xs font-medium text-[#6B7B8D] hidden md:inline">Port Disruption</span>
           <button
             role="switch"
             aria-checked={useMLDelays}
@@ -55,7 +55,7 @@ export default function TabNav({ activeTab, onTabChange, useMLDelays, onToggleML
             />
           </button>
           {useMLDelays && (
-            <span className="text-xs font-semibold text-[#E57373] bg-[#E57373]/10 px-2 py-0.5 rounded">
+            <span className="text-xs font-semibold text-[#E57373] bg-[#E57373]/10 px-2 py-0.5 rounded hidden sm:inline">
               ML Active
             </span>
           )}
